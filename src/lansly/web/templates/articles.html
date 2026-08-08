@@ -15,11 +15,18 @@
             <div class="article-list">
                 {% for article in pagination.items %}
                 <article class="article-item">
-                    <a href="/articles/{{ article.slug }}/" class="article-item-title">{{ article.title }}</a>
-                    {% if article.description %}
-                    <p class="article-item-desc">{{ article.description }}</p>
+                    <div class="article-item-main">
+                        <a href="/articles/{{ article.slug }}/" class="article-item-title">{{ article.title }}</a>
+                        {% if article.description %}
+                        <p class="article-item-desc">{{ article.description }}</p>
+                        {% endif %}
+                        <time class="article-item-date">{{ article.published_at.strftime('%d.%m.%Y') }}</time>
+                    </div>
+                    {% if article.cover_image %}
+                    <a href="/articles/{{ article.slug }}/" class="article-item-cover" tabindex="-1" aria-hidden="true">
+                        <img src="{{ article.cover_image.url }}" alt="" loading="lazy" decoding="async">
+                    </a>
                     {% endif %}
-                    <time class="article-item-date">{{ article.published_at.strftime('%d.%m.%Y') }}</time>
                 </article>
                 {% endfor %}
                 {% if pagination.total == 0 %}

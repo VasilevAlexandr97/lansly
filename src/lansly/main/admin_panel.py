@@ -7,11 +7,11 @@ from dishka import AsyncContainer
 from dishka.integrations.fastapi import FastapiProvider, setup_dishka
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
-from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette_admin.contrib.sqla import Admin
 
 from lansly.admin_panel.auth import AdminPanelAuthProvider
+from lansly.admin_panel.routers.media import router as upload_media_router
 from lansly.admin_panel.views.articles import ArticleView
 from lansly.admin_panel.views.projects import (
     ProjectProposalView,
@@ -27,31 +27,38 @@ from lansly.main.di import (
 )
 from lansly.projects.models import Project, ProjectProposal
 from lansly.users.models import User
+from lansly.web.routers.media import router as get_media_router
 
 logger = logging.getLogger(__name__)
 
 
-def setup_views(admin: Admin):
+def setup_routers(app: FastAPI) -> None:
+    app.include_router(get_media_router)
+    app.include_router(upload_media_router)
+
+
+def setup_middlewares(app: FastAPI, config: Config) -> None:
+    app.add_middleware(
+        SessionMiddleware,
+        session_cookie="__adm_s",
+        max_age=config.admin_panel.session_ttl,
+        secret_key=config.admin_panel.session_secret_key,
+        same_site="strict",
+    )
+
+
+def setup_views(admin: Admin) -> None:
     admin.add_view(UserView(User))
     admin.add_view(ProjectView(Project))
     admin.add_view(ProjectProposalView(ProjectProposal))
     admin.add_view(ArticleView(Article))
 
 
-def setup_admin(engine: AsyncEngine, app: FastAPI, config: Config):
+def setup_admin(engine: AsyncEngine, app: FastAPI, config: Config) -> None:
     admin = Admin(
         engine=engine,
         debug=config.debug,
         auth_provider=AdminPanelAuthProvider(),
-        middlewares=[
-            Middleware(
-                SessionMiddleware,
-                session_cookie="__adm_s",
-                max_age=config.admin_panel.session_ttl,
-                secret_key=config.admin_panel.session_secret_key,
-                same_site="strict",
-            ),
-        ],
     )
     setup_views(admin)
     admin.mount_to(app)
@@ -69,7 +76,7 @@ async def lifespan(app: FastAPI):
     await container.close()
 
 
-def create_app():
+def create_app() -> FastAPI:
     config = get_config()
     logging.basicConfig(level=logging.DEBUG if config.debug else logging.INFO)
     bot = Bot(token=config.telegram_bot.token)
@@ -87,5 +94,7 @@ def create_app():
             redoc_url=None,
             openapi_url=None,
         )
+    setup_middlewares(app, config)
+    setup_routers(app)
     setup_dishka(container, app)
     return app

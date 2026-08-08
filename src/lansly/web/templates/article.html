@@ -4,9 +4,18 @@
 
 {% block description %}{{ article.meta_description or article.description or article.title }}{% endblock %}
 
+{% block og_image %}
+{% if article.cover_image %}
+<meta property="og:image" content="{{ request.base_url }}{{ article.cover_image.url[1:] }}">
+{% endif %}
+{% endblock %}
+
 {% block content %}
     <section class="article-page">
         <div class="wrap">
+            {% if article.cover_image %}
+            <img class="article-cover" src="{{ article.cover_image.url }}" alt="{{ article.title }}" loading="lazy" decoding="async">
+            {% endif %}
             <div class="article-header">
                 <a href="/articles/" class="article-back">← Все статьи</a>
                 <h1>{{ article.title }}</h1>

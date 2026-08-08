@@ -1,8 +1,3 @@
-from lansly.web.sitemap.builder import SitemapBuilder
-from lansly.web.sitemap.sections import (
-    StaticSitemapSection,
-    ArticlesSitemapSection,
-)
 from collections.abc import AsyncIterable
 from typing import Any
 
@@ -25,8 +20,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from lansly.articles.gateways import SAArticleGateway
-from lansly.articles.interfaces import ArticleGateway
+from lansly.articles.gateways import SAArticleGateway, SAArticleImageGateway
+from lansly.articles.interfaces import ArticleGateway, ArticleImageGateway
 from lansly.articles.service import ArticleService
 from lansly.auth.id_provider import (
     SessionIdProvider,
@@ -145,6 +140,11 @@ from lansly.users.gateways import (
 )
 from lansly.users.interfaces import UserGateway, UserRoleGateway
 from lansly.users.service import CreateAdminUserService
+from lansly.web.sitemap.builder import SitemapBuilder
+from lansly.web.sitemap.sections import (
+    ArticlesSitemapSection,
+    StaticSitemapSection,
+)
 
 
 class InfraProvider(Provider):
@@ -274,6 +274,11 @@ class ArticleProvider(Provider):
         SAArticleGateway,
         scope=Scope.REQUEST,
         provides=ArticleGateway,
+    )
+    article_image_gateway = provide(
+        SAArticleImageGateway,
+        scope=Scope.REQUEST,
+        provides=ArticleImageGateway,
     )
     article_service = provide(ArticleService, scope=Scope.REQUEST)
 

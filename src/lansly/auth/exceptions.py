@@ -4,3 +4,7 @@ class AuthenticationError(Exception):
 
 class AlreadyAuthenticatedError(Exception):
     pass
+
+
+class ForbiddenError(Exception):
+    pass
