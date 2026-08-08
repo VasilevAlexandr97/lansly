@@ -7,6 +7,16 @@ from uuid import UUID
 from redis.asyncio.client import Redis
 from redis.asyncio.lock import Lock
 
+from lansly.apps.telegram_bot.keyboards import (
+    build_channel_project_kbd,
+    build_no_active_subscription_kbd,
+    build_project_kbd,
+    build_subscription_activated_kbd,
+)
+from lansly.apps.telegram_bot.messages import (
+    generating_proposal_failed_message,
+    project_message,
+)
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.infra.telegram.telegram_notifier import TelegramNotifier
 from lansly.notifications.interfaces import (
@@ -25,16 +35,6 @@ from lansly.preferences.interfaces import UserPriceFilterGateway
 from lansly.projects.exceptions import ProjectProposalNotFoundError
 from lansly.projects.gateways import ProjectProposalGateway
 from lansly.projects.interfaces import ProjectGateway
-from lansly.telegram_bot.keyboards import (
-    build_channel_project_kbd,
-    build_no_active_subscription_kbd,
-    build_project_kbd,
-    build_subscription_activated_kbd,
-)
-from lansly.telegram_bot.messages import (
-    generating_proposal_failed_message,
-    project_message,
-)
 from lansly.users.exceptions import UserNotFoundError
 from lansly.users.interfaces import UserGateway
 

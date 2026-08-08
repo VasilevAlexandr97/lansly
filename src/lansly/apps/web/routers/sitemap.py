@@ -2,7 +2,7 @@ from dishka.integrations.fastapi import FromDishka, inject
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from lansly.web.sitemap.builder import SitemapBuilder
+from lansly.apps.web.sitemap.builder import SitemapBuilder
 
 router = APIRouter()
 

@@ -7,18 +7,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from dishka.integrations.aiogram import FromDishka, inject
 
-from lansly.subscriptions.exceptions import (
-    ActiveSubscriptionExistsError,
-    PaymentAlreadyPaidError,
-    PaymentEmailRequiredError,
-    PaymentEmailValidationError,
-    SubscriptionAlreadyCancelledError,
-)
-from lansly.subscriptions.services import (
-    SubscriptionManagementService,
-    SubscriptionPaymentService,
-)
-from lansly.telegram_bot.keyboards import (
+from lansly.apps.telegram_bot.keyboards import (
     build_no_active_subscription_kbd,
     build_payment_email_kbd,
     build_payment_kbd,
@@ -28,7 +17,7 @@ from lansly.telegram_bot.keyboards import (
     build_subscription_plan_kbd,
     build_try_again_later_kbd,
 )
-from lansly.telegram_bot.messages import (
+from lansly.apps.telegram_bot.messages import (
     not_active_subscription_message,
     payment_email_message,
     payment_email_validation_error_message,
@@ -40,7 +29,18 @@ from lansly.telegram_bot.messages import (
     subscription_info_message,
     try_again_later_message,
 )
-from lansly.telegram_bot.states import PaymentState
+from lansly.apps.telegram_bot.states import PaymentState
+from lansly.subscriptions.exceptions import (
+    ActiveSubscriptionExistsError,
+    PaymentAlreadyPaidError,
+    PaymentEmailRequiredError,
+    PaymentEmailValidationError,
+    SubscriptionAlreadyCancelledError,
+)
+from lansly.subscriptions.services import (
+    SubscriptionManagementService,
+    SubscriptionPaymentService,
+)
 
 logger = logging.getLogger(__name__)
 

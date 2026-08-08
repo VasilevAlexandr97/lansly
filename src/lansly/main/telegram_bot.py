@@ -8,18 +8,20 @@ from aiogram.fsm.storage.redis import RedisStorage
 from dishka.integrations.aiogram import AiogramProvider, setup_dishka
 from redis.asyncio.client import Redis
 
-from lansly.main.config import Config, config
-from lansly.main.di import TelegramBotProvider, create_container
-from lansly.telegram_bot.handlers.default import router as default_router
-from lansly.telegram_bot.handlers.errors import global_error_handler
-from lansly.telegram_bot.handlers.preferences import (
+from lansly.apps.telegram_bot.handlers.default import router as default_router
+from lansly.apps.telegram_bot.handlers.errors import global_error_handler
+from lansly.apps.telegram_bot.handlers.preferences import (
     router as preferences_router,
 )
-from lansly.telegram_bot.handlers.projects import router as projects_router
-from lansly.telegram_bot.handlers.subscriptions import (
+from lansly.apps.telegram_bot.handlers.projects import (
+    router as projects_router,
+)
+from lansly.apps.telegram_bot.handlers.subscriptions import (
     router as subscriptions_router,
 )
-from lansly.telegram_bot.middlewares.antiflood import AntiFloodMiddleware
+from lansly.apps.telegram_bot.middlewares.antiflood import AntiFloodMiddleware
+from lansly.main.config import Config, config
+from lansly.main.di import TelegramBotProvider, create_container
 
 bot = Bot(
     token=config.telegram_bot.token,

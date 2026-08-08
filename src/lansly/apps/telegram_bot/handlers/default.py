@@ -4,20 +4,20 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from dishka.integrations.aiogram import FromDishka, inject
 
-from lansly.auth.telegram_auth import TelegramAuth
-from lansly.common.dto import CurrentUser
-from lansly.preferences.services import UserCategoryFollowService
-from lansly.telegram_bot.keyboards import (
+from lansly.apps.telegram_bot.keyboards import (
     MainMenuCB,
     build_about_project_kbd,
     build_main_menu_kbd,
     build_start_kbd,
 )
-from lansly.telegram_bot.messages import (
+from lansly.apps.telegram_bot.messages import (
     about_project_message,
     menu_message,
     start_message,
 )
+from lansly.auth.telegram_auth import TelegramAuth
+from lansly.common.dto import CurrentUser
+from lansly.preferences.services import UserCategoryFollowService
 
 router = Router()
 router.message.filter(F.chat.type == ChatType.PRIVATE)

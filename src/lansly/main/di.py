@@ -20,6 +20,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from lansly.apps.web.sitemap.builder import SitemapBuilder
+from lansly.apps.web.sitemap.sections import (
+    ArticlesSitemapSection,
+    StaticSitemapSection,
+)
 from lansly.articles.gateways import SAArticleGateway, SAArticleImageGateway
 from lansly.articles.interfaces import ArticleGateway, ArticleImageGateway
 from lansly.articles.service import ArticleService
@@ -140,11 +145,6 @@ from lansly.users.gateways import (
 )
 from lansly.users.interfaces import UserGateway, UserRoleGateway
 from lansly.users.service import CreateAdminUserService
-from lansly.web.sitemap.builder import SitemapBuilder
-from lansly.web.sitemap.sections import (
-    ArticlesSitemapSection,
-    StaticSitemapSection,
-)
 
 
 class InfraProvider(Provider):

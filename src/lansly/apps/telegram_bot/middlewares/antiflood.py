@@ -1,4 +1,3 @@
-from lansly.telegram_bot.messages import antiflood_message
 import logging
 
 from collections.abc import Awaitable, Callable
@@ -9,6 +8,8 @@ from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from redis import RedisError
 from redis.asyncio import Redis
+
+from lansly.apps.telegram_bot.messages import antiflood_message
 
 logger = logging.getLogger(__name__)
 

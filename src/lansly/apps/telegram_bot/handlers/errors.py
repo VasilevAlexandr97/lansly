@@ -2,7 +2,7 @@ import logging
 
 from aiogram.types import ErrorEvent
 
-from lansly.telegram_bot.messages import (
+from lansly.apps.telegram_bot.messages import (
     error_callback_message,
     error_message,
 )

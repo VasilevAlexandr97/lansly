@@ -5,19 +5,19 @@ from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from lansly.main.config import Config, get_config
-from lansly.main.di import WebProvider, create_container
-from lansly.web.exception_handlers import (
+from lansly.apps.web.exception_handlers import (
     http_exception_handler,
     server_error_handler,
 )
-from lansly.web.middlewares.not_found import NotFoundMiddleware
-from lansly.web.middlewares.security import SecurityHeadersMiddleware
-from lansly.web.routers.articles import router as articles_router
-from lansly.web.routers.index import router as index_router
-from lansly.web.routers.media import router as media_router
-from lansly.web.routers.robots import router as robots_router
-from lansly.web.routers.sitemap import router as sitemap_router
+from lansly.apps.web.middlewares.not_found import NotFoundMiddleware
+from lansly.apps.web.middlewares.security import SecurityHeadersMiddleware
+from lansly.apps.web.routers.articles import router as articles_router
+from lansly.apps.web.routers.index import router as index_router
+from lansly.apps.web.routers.media import router as media_router
+from lansly.apps.web.routers.robots import router as robots_router
+from lansly.apps.web.routers.sitemap import router as sitemap_router
+from lansly.main.config import Config, get_config
+from lansly.main.di import WebProvider, create_container
 
 
 def setup_middlewares(app: FastAPI) -> None:

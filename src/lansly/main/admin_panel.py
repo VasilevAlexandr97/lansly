@@ -10,14 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.middleware.sessions import SessionMiddleware
 from starlette_admin.contrib.sqla import Admin
 
-from lansly.admin_panel.auth import AdminPanelAuthProvider
-from lansly.admin_panel.routers.media import router as upload_media_router
-from lansly.admin_panel.views.articles import ArticleView
-from lansly.admin_panel.views.projects import (
+from lansly.apps.web.admin_panel.auth import AdminPanelAuthProvider
+from lansly.apps.web.admin_panel.routers.media import (
+    router as upload_media_router,
+)
+from lansly.apps.web.admin_panel.views.articles import ArticleView
+from lansly.apps.web.admin_panel.views.projects import (
     ProjectProposalView,
     ProjectView,
 )
-from lansly.admin_panel.views.users import UserView
+from lansly.apps.web.admin_panel.views.users import UserView
+from lansly.apps.web.routers.media import router as get_media_router
 from lansly.articles.models import Article
 from lansly.main.config import Config, get_config
 from lansly.main.di import (
@@ -27,7 +30,6 @@ from lansly.main.di import (
 )
 from lansly.projects.models import Project, ProjectProposal
 from lansly.users.models import User
-from lansly.web.routers.media import router as get_media_router
 
 logger = logging.getLogger(__name__)
 

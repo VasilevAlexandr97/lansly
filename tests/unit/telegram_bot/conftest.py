@@ -16,9 +16,9 @@ from fakes.preferences import FakeFollowService
 from fakes.telegram_auth import FakeTelegramAuth
 from fakes.telegram_bot import BotClient, FakeBot
 
+from lansly.apps.telegram_bot.handlers.default import router as default_router
 from lansly.auth.telegram_auth import TelegramAuth
 from lansly.preferences.services import UserCategoryFollowService
-from lansly.telegram_bot.handlers.default import router as default_router
 
 
 class HandlerTestProvider(Provider):

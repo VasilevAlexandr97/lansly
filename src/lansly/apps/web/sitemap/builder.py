@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from lansly.web.sitemap.schema import SitemapSection
+from lansly.apps.web.sitemap.schema import SitemapSection
 
 
 class SitemapBuilder:

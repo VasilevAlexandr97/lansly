@@ -6,19 +6,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from dishka.integrations.aiogram import FromDishka, inject
 
-from lansly.preferences.exceptions import (
-    FreelancerProfileLengthError,
-    PriceFilterRangeError,
-    UserCategoryFollowLimitExceededError,
-)
-from lansly.preferences.services import (
-    UserCategoryFollowService,
-    UserFreelancerProfileService,
-    UserPriceFilterService,
-    UserStopWordsService,
-)
-from lansly.projects.services import ProjectCategoryService
-from lansly.telegram_bot.keyboards import (
+from lansly.apps.telegram_bot.keyboards import (
     ManageAction,
     ManageFollowedCategoriesCB,
     build_edit_profile_kbd,
@@ -31,7 +19,7 @@ from lansly.telegram_bot.keyboards import (
     build_start_set_price_filter_kbd,
     build_stop_words_menu_kbd,
 )
-from lansly.telegram_bot.messages import (
+from lansly.apps.telegram_bot.messages import (
     categories_limit_exceeded_message,
     empty_stop_words_delete_message,
     price_filter_format_error_message,
@@ -48,11 +36,23 @@ from lansly.telegram_bot.messages import (
     stop_words_menu_message,
     unfollow_all_categories_message,
 )
-from lansly.telegram_bot.states import (
+from lansly.apps.telegram_bot.states import (
     FreelancerProfileState,
     PriceFilterState,
     StopWordsState,
 )
+from lansly.preferences.exceptions import (
+    FreelancerProfileLengthError,
+    PriceFilterRangeError,
+    UserCategoryFollowLimitExceededError,
+)
+from lansly.preferences.services import (
+    UserCategoryFollowService,
+    UserFreelancerProfileService,
+    UserPriceFilterService,
+    UserStopWordsService,
+)
+from lansly.projects.services import ProjectCategoryService
 
 router = Router()
 router.message.filter(F.chat.type == ChatType.PRIVATE)

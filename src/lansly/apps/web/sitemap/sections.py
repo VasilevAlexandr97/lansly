@@ -1,5 +1,5 @@
+from lansly.apps.web.sitemap.schema import SitemapEntry, SitemapSection
 from lansly.articles.interfaces import ArticleGateway
-from lansly.web.sitemap.schema import SitemapEntry, SitemapSection
 
 HOME_ENTRY = SitemapEntry(
     loc="https://lansly.ru/",

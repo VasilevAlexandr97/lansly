@@ -27,8 +27,8 @@ exclude = [
     "venv",
     ".helm",
     "src/lansly/infra/database/migrations",
-    "src/lansly/web/static",
-    "src/lansly/web/templates",
+    "src/lansly/apps/web/static",
+    "src/lansly/apps/web/templates",
 ]
 
 

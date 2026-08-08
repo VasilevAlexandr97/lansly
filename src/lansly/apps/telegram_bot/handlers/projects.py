@@ -2,21 +2,21 @@ from aiogram import F, Router, types
 from aiogram.enums import ChatType
 from dishka.integrations.aiogram import FromDishka, inject
 
+from lansly.apps.telegram_bot.keyboards import (
+    GenerateProposalCB,
+    build_profile_menu_kbd,
+)
+from lansly.apps.telegram_bot.messages import (
+    already_generating_proposal_message,
+    generating_proposal_message,
+    generation_limit_exceeded_message,
+    profile_not_set_message,
+)
 from lansly.preferences.exceptions import UserFreelancerProfileNotFoundError
 from lansly.projects.dto import ProjectProposalGenerationRequestStatus
 from lansly.projects.exceptions import GenerationLimitExceededError
 from lansly.projects.services import (
     ProjectProposalRequestService,
-)
-from lansly.telegram_bot.keyboards import (
-    GenerateProposalCB,
-    build_profile_menu_kbd,
-)
-from lansly.telegram_bot.messages import (
-    already_generating_proposal_message,
-    generating_proposal_message,
-    generation_limit_exceeded_message,
-    profile_not_set_message,
 )
 
 router = Router()

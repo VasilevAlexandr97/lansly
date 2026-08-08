@@ -71,9 +71,11 @@ class YookassaConfig:
 @dataclass(frozen=True)
 class WebConfig:
     templates_dir: Path = (
-        PROJECT_DIR / "src" / "lansly" / "web" / "templates"
+        PROJECT_DIR / "src" / "lansly" / "apps" / "web" / "templates"
     )
-    static_dir: Path = PROJECT_DIR / "src" / "lansly" / "web" / "static"
+    static_dir: Path = (
+        PROJECT_DIR / "src" / "lansly" / "apps" / "web" / "static"
+    )
 
 
 @dataclass(frozen=True)
