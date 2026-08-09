@@ -56,7 +56,7 @@ class ArticleView(ModelView):
             ),
             extra_options={
                 "plugins": (
-                    "advlist autolink link image lists charmap code table "
+                    "advlist autolink link image lists charmap code paste table "
                     "preview fullscreen searchreplace wordcount"
                 ),
                 "block_formats": (
