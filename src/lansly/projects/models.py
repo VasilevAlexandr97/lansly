@@ -9,12 +9,17 @@ from sqlalchemy import (
     ForeignKey,
     Numeric,
     String,
+    UniqueConstraint,
     func,
     text as sa_text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lansly.infra.database.base import Base
+
+
+class ProjectSource(StrEnum):
+    KWORK = "kwork"
 
 
 class ProjectProposalRequestStatus(StrEnum):
@@ -28,7 +33,13 @@ class ProjectCategory(Base):
     __tablename__ = "project_categories"
 
     id: Mapped[UUID] = mapped_column(SA_UUID(as_uuid=True), primary_key=True)
-    external_id: Mapped[int]
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(32),
+        default=ProjectSource.KWORK,
+        server_default=ProjectSource.KWORK,
+        nullable=False,
+    )
     title: Mapped[str]
     parent_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("project_categories.id", ondelete="SET NULL"),
@@ -44,6 +55,14 @@ class ProjectCategory(Base):
         cascade="all, delete-orphan",
     )
 
+    __table_args__ = (
+        UniqueConstraint(
+            "external_id",
+            "source",
+            name="uq_project_categories_external_id_source",
+        ),
+    )
+
     def __repr__(self):
         return f"ProjectCategory(id={self.id}, title={self.title})"
 
@@ -52,7 +71,13 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[UUID] = mapped_column(SA_UUID(as_uuid=True), primary_key=True)
-    external_id: Mapped[int] = mapped_column(unique=True, nullable=False)
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(32),
+        default=ProjectSource.KWORK,
+        server_default=ProjectSource.KWORK,
+        nullable=False,
+    )
     category_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("project_categories.id", ondelete="SET NULL"),
         nullable=True,
@@ -73,6 +98,14 @@ class Project(Base):
     )
     proposals: Mapped[list["ProjectProposal"]] = relationship(
         back_populates="project",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "external_id",
+            "source",
+            name="uq_projects_external_id_source",
+        ),
     )
 
     def __repr__(self):

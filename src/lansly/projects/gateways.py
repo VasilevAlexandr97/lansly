@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from lansly.projects.interfaces import (
+    ProjectCategoryGateway,
     ProjectGateway,
     UserGenerationUsageGateway,
 )
@@ -20,14 +21,24 @@ from lansly.projects.models import (
 )
 
 
-class ProjectCategoryGateway:
+class SAProjectCategoryGateway(ProjectCategoryGateway):
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def upsert(self, categories_data: list[dict]):
-        stmt = pg_insert(ProjectCategory).values(categories_data)
+    async def upsert(self, categories: list[ProjectCategory]):
+        values_data = [
+            {
+                "id": cat.id,
+                "external_id": cat.external_id,
+                "source": cat.source,
+                "title": cat.title,
+                "parent_id": cat.parent_id,
+            }
+            for cat in categories
+        ]
+        stmt = pg_insert(ProjectCategory).values(values_data)
         stmt = stmt.on_conflict_do_update(
-            index_elements=["id"],
+            index_elements=["external_id", "source"],
             set_={
                 "title": stmt.excluded.title,
                 "parent_id": stmt.excluded.parent_id,
@@ -35,20 +46,26 @@ class ProjectCategoryGateway:
         )
         await self.session.execute(stmt)
 
-    async def get_root_categories(self) -> list[ProjectCategory]:
-        stmt = select(ProjectCategory).where(
-            ProjectCategory.parent_id.is_(None),
-        )
-        result = await self.session.scalars(stmt)
-        return list(result.all())
-
     async def get_categories_by_external_ids(
         self,
-        external_ids: list[int],
+        external_ids: list[str],
+        source: str,
     ) -> list[ProjectCategory]:
         stmt = select(ProjectCategory).where(
             ProjectCategory.external_id.in_(external_ids),
+            ProjectCategory.source == source,
         )
+        return list(await self.session.scalars(stmt))
+
+    async def get_root_categories(
+        self,
+        source: str | None = None,
+    ) -> list[ProjectCategory]:
+        stmt = select(ProjectCategory).where(
+            ProjectCategory.parent_id.is_(None),
+        )
+        if source is not None:
+            stmt = stmt.where(ProjectCategory.source == source)
         result = await self.session.scalars(stmt)
         return list(result.all())
 
@@ -64,6 +81,7 @@ class SAProjectGateway(ProjectGateway):
             {
                 "id": project.id,
                 "external_id": project.external_id,
+                "source": project.source,
                 "title": project.title,
                 "category_id": project.category_id,
                 "price": project.price,
@@ -77,17 +95,19 @@ class SAProjectGateway(ProjectGateway):
             pg_insert(Project)
             .values(values)
             .on_conflict_do_nothing(
-                index_elements=["external_id"],
+                index_elements=["external_id", "source"],
             )
         )
         await self.session.execute(stmt)
 
     async def get_missing_external_ids(
         self,
-        external_ids: list[int],
-    ) -> set[int]:
+        external_ids: list[str],
+        source: str,
+    ) -> set[str]:
         stmt = select(Project.external_id).where(
             Project.external_id.in_(external_ids),
+            Project.source == source,
         )
         existing_ids = await self.session.scalars(stmt)
         return set(external_ids) - set(existing_ids)

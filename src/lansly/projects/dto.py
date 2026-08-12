@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Self
 
 
 class ProjectProposalGenerationRequestStatus(StrEnum):
@@ -12,3 +13,21 @@ class ProjectProposalGenerationRequestStatus(StrEnum):
 class ProjectProposalGenerationRequestResult:
     status: ProjectProposalGenerationRequestStatus
     generated_text: str | None = None
+
+
+@dataclass
+class MarketPlaceCategory:
+    id: str
+    title: str
+    subcategories: tuple[Self, ...] = ()
+
+
+@dataclass
+class MarketPlaceProject:
+    id: str
+    category_id: str | None
+    price: int
+    possible_price_limit: int
+    title: str
+    description: str
+    offers: int

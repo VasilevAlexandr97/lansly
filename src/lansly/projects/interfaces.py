@@ -2,7 +2,33 @@ from abc import abstractmethod
 from typing import Protocol
 from uuid import UUID
 
-from lansly.projects.models import Project, UserGenerationUsage
+from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
+from lansly.projects.models import (
+    Project,
+    ProjectCategory,
+    UserGenerationUsage,
+)
+
+
+class ProjectCategoryGateway(Protocol):
+    @abstractmethod
+    async def upsert(self, categories: list[ProjectCategory]):
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_categories_by_external_ids(
+        self,
+        external_ids: list[str],
+        source: str,
+    ) -> list[ProjectCategory]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_root_categories(
+        self,
+        source: str | None = None,
+    ) -> list[ProjectCategory]:
+        raise NotImplementedError
 
 
 class ProjectGateway(Protocol):
@@ -13,8 +39,9 @@ class ProjectGateway(Protocol):
     @abstractmethod
     async def get_missing_external_ids(
         self,
-        external_ids: list[int],
-    ) -> set[int]:
+        external_ids: list[str],
+        source: str,
+    ) -> set[str]:
         raise NotImplementedError
 
     @abstractmethod
@@ -27,6 +54,20 @@ class ProjectGateway(Protocol):
 
     @abstractmethod
     async def get_by_id(self, project_id: UUID) -> Project | None:
+        raise NotImplementedError
+
+
+class MarketPlaceClient(Protocol):
+    @abstractmethod
+    async def get_categories(self) -> list[MarketPlaceCategory]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_projects(
+        self,
+        categories_ids: list[int | str],
+        page: int = 1,
+    ) -> list[MarketPlaceProject]:
         raise NotImplementedError
 
 

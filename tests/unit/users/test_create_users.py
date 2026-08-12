@@ -12,26 +12,6 @@ from lansly.users.service import CreateAdminUserService
 
 
 @pytest.fixture
-def user_gateway() -> FakeUserGateway:
-    return FakeUserGateway()
-
-
-@pytest.fixture
-def role_gateway() -> FakeUserRoleGateway:
-    return FakeUserRoleGateway()
-
-
-@pytest.fixture
-def txn() -> FakeTransactionManager:
-    return FakeTransactionManager()
-
-
-@pytest.fixture
-def hasher() -> PasswordHasherBcrypt:
-    return PasswordHasherBcrypt()
-
-
-@pytest.fixture
 def service(
     user_gateway: FakeUserGateway,
     role_gateway: FakeUserRoleGateway,

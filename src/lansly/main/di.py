@@ -98,9 +98,9 @@ from lansly.preferences.services import (
     UserStopWordsService,
 )
 from lansly.projects.gateways import (
-    ProjectCategoryGateway,
     ProjectProposalGateway,
     ProjectProposalRequestGateway,
+    SAProjectCategoryGateway,
     SAProjectGateway,
     SAUserGenerationUsageGateway,
     UserGenerationUsageGateway,
@@ -108,6 +108,7 @@ from lansly.projects.gateways import (
 from lansly.projects.generators import ProjectProposalGenerator
 from lansly.projects.interfaces import (
     GenerationLimitChecker,
+    ProjectCategoryGateway,
     ProjectGateway,
     ProposalGenerationQueue,
 )
@@ -307,21 +308,14 @@ class UserProvider(Provider):
 
 class ProjectProvider(Provider):
     project_category_gateway = provide(
-        ProjectCategoryGateway,
+        SAProjectCategoryGateway,
         scope=Scope.REQUEST,
-    )
-    project_category_service = provide(
-        ProjectCategoryService,
-        scope=Scope.REQUEST,
+        provides=ProjectCategoryGateway,
     )
     project_gateway = provide(
         SAProjectGateway,
         scope=Scope.REQUEST,
         provides=ProjectGateway,
-    )
-    project_sync_service = provide(
-        ProjectSyncService,
-        scope=Scope.REQUEST,
     )
     project_proposal_gateway = provide(
         ProjectProposalGateway,
@@ -343,6 +337,34 @@ class ProjectProvider(Provider):
         client: LLMClient,
     ) -> ProjectProposalGenerator:
         return ProjectProposalGenerator(client)
+
+    @provide(scope=Scope.REQUEST)
+    def get_project_category_service(
+        self,
+        gateway: ProjectCategoryGateway,
+        transaction_manager: TransactionManager,
+        kwork_client: KworkClient,
+    ) -> ProjectCategoryService:
+        return ProjectCategoryService(
+            gateway=gateway,
+            transaction_manager=transaction_manager,
+            marketplace_client=kwork_client,
+        )
+
+    @provide(scope=Scope.REQUEST)
+    def get_project_sync_service(
+        self,
+        category_gateway: ProjectCategoryGateway,
+        project_gateway: ProjectGateway,
+        transaction_manager: TransactionManager,
+        kwork_client: KworkClient,
+    ) -> ProjectSyncService:
+        return ProjectSyncService(
+            category_gateway=category_gateway,
+            project_gateway=project_gateway,
+            transaction_manager=transaction_manager,
+            marketplace_client=kwork_client,
+        )
 
     project_proposal_request_service = provide(
         ProjectProposalRequestService,
