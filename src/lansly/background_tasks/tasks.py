@@ -15,6 +15,7 @@ from lansly.projects.services import (
     ProjectProposalGenerationService,
     ProjectSyncService,
 )
+from lansly.statistics.services import DailyMetricsService
 from lansly.subscriptions.services import (
     PaymentVerificationService,
     SubscriptionRenewalService,
@@ -138,3 +139,10 @@ async def notify_subscription_revoked(
     service: FromDishka[SubscriptionNotificationService],
 ):
     await service.notify_revoked(user_id)
+
+
+@broker.task(schedule=[{"cron": "1 0 * * *"}])
+@inject
+async def collect_daily_metrics(service: FromDishka[DailyMetricsService]):
+    logger.info("Collect daily metrics")
+    await service.compute_yesterday()

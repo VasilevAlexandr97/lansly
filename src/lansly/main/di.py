@@ -119,6 +119,15 @@ from lansly.projects.services import (
     ProjectSyncService,
 )
 from lansly.projects.usage_checker import GenerationLimitCheckerImpl
+from lansly.statistics.gateways import (
+    SADailyMetricsGateway,
+    SAProjectDailyStatsGateway,
+)
+from lansly.statistics.interfaces import (
+    DailyMetricsGateway,
+    ProjectDailyStatsGateway,
+)
+from lansly.statistics.services import DailyMetricsService
 from lansly.subscriptions.checker import (
     SubscriptionCheckerImpl,
 )
@@ -531,6 +540,23 @@ class SubscriptionProvider(Provider):
     )
 
 
+class StatisticsProvider(Provider):
+    daily_metrics_gateway = provide(
+        SADailyMetricsGateway,
+        scope=Scope.REQUEST,
+        provides=DailyMetricsGateway,
+    )
+    project_daily_stats_gateway = provide(
+        SAProjectDailyStatsGateway,
+        scope=Scope.REQUEST,
+        provides=ProjectDailyStatsGateway,
+    )
+    daily_metrics_service = provide(
+        DailyMetricsService,
+        scope=Scope.REQUEST,
+    )
+
+
 class TelegramBotProvider(Provider):
     @provide(scope=Scope.REQUEST, provides=IdProvider)
     def get_id_provider(
@@ -641,6 +667,7 @@ def create_container(
         PreferenceProvider(),
         NotificationProvider(),
         SubscriptionProvider(),
+        StatisticsProvider(),
         *providers,
         context=context,
     )
