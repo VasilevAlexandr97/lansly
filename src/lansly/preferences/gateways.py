@@ -19,8 +19,8 @@ from lansly.preferences.interfaces import (
 from lansly.preferences.models import (
     UserCategoryFollow,
     UserFreelancerProfile,
-    UserStopWord,
     UserPriceFilter,
+    UserStopWord,
 )
 from lansly.projects.models import ProjectCategory
 from lansly.users.models import User

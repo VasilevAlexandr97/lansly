@@ -5,7 +5,7 @@ from lansly.main.cli import build_parser
 
 def test_create_admin_parses_flags():
     args = build_parser().parse_args(
-        ["create-admin", "--username", "admin", "--password", "secret123"]
+        ["create-admin", "--username", "admin", "--password", "secret123"],
     )
     assert args.command == "create-admin"
     assert args.username == "admin"

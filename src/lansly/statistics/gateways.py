@@ -11,6 +11,10 @@ from sqlalchemy import ColumnElement, Date, delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lansly.notifications.models import (
+    ChannelNotification,
+    ProjectNotification,
+)
 from lansly.projects.models import Project, ProjectCategory
 from lansly.statistics.consts import (
     ALL_DIMENSION,
@@ -22,6 +26,7 @@ from lansly.statistics.consts import (
 from lansly.statistics.dto import MetricRow
 from lansly.statistics.interfaces import (
     DailyMetricsGateway,
+    NotificationDailyStatsGateway,
     ProjectDailyStatsGateway,
 )
 from lansly.statistics.models import DailyMetric
@@ -80,7 +85,7 @@ class SAProjectDailyStatsGateway(ProjectDailyStatsGateway):
         self.session = session
 
     @staticmethod
-    def _day_range(day: dt_type):
+    def _day_range(day: dt_type) -> tuple[dt_type, dt_type]:
         day_start = datetime.combine(day, datetime.min.time(), tzinfo=UTC)
         return day_start, day_start + timedelta(days=1)
 
@@ -205,3 +210,64 @@ class SAProjectDailyStatsGateway(ProjectDailyStatsGateway):
                 values,
             )
         return rows
+
+
+class SANotificationDailyStatsGateway(NotificationDailyStatsGateway):
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    @staticmethod
+    def _day_range(day: dt_type) -> tuple[dt_type, dt_type]:
+        day_start = datetime.combine(day, datetime.min.time(), tzinfo=UTC)
+        return day_start, day_start + timedelta(days=1)
+
+    async def get_earliest_notification_date(self) -> dt_type | None:
+        date1 = await self.session.scalar(
+            select(
+                func.min(
+                    ProjectNotification.sent_at.op("AT TIME ZONE")("UTC").cast(
+                        Date,
+                    ),
+                ),
+            ),
+        )
+        date2 = await self.session.scalar(
+            select(
+                func.min(
+                    ChannelNotification.sent_at.op("AT TIME ZONE")("UTC").cast(
+                        Date,
+                    ),
+                ),
+            ),
+        )
+        dates = [d for d in (date1, date2) if d is not None]
+        return min(dates) if dates else None
+
+    async def compute_day(self, day: dt_type) -> list[MetricRow]:
+        day_start, day_end = self._day_range(day)
+        notif_count = await self.session.scalar(
+            select(func.count()).where(
+                ProjectNotification.sent_at >= day_start,
+                ProjectNotification.sent_at < day_end,
+            ),
+        )
+        ch_notif_count = await self.session.scalar(
+            select(func.count()).where(
+                ChannelNotification.sent_at >= day_start,
+                ChannelNotification.sent_at < day_end,
+            ),
+        )
+        return [
+            MetricRow(
+                date=day,
+                metric=DailyMetricName.NOTIFICATIONS_COUNT,
+                dimension=ALL_DIMENSION,
+                value=notif_count,
+            ),
+            MetricRow(
+                date=day,
+                metric=DailyMetricName.CHANNEL_NOTIFICATIONS_COUNT,
+                dimension=ALL_DIMENSION,
+                value=ch_notif_count,
+            ),
+        ]

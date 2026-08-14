@@ -41,3 +41,23 @@ class FakeProjectDailyStatsGateway:
     async def compute_day(self, day: dt_type) -> list[MetricRow]:
         self.compute_day_calls.append(day)
         return self.compute_day_rows
+
+
+class FakeNotificationDailyStatsGateway:
+    def __init__(
+        self,
+        earliest_notification_date: dt_type | None = None,
+        compute_day_rows: list[MetricRow] | None = None,
+    ):
+        self.earliest_notification_date = earliest_notification_date
+        self.compute_day_rows = compute_day_rows or []
+        self.earliest_calls = 0
+        self.compute_day_calls: list[dt_type] = []
+
+    async def get_earliest_notification_date(self) -> dt_type | None:
+        self.earliest_calls += 1
+        return self.earliest_notification_date
+
+    async def compute_day(self, day: dt_type) -> list[MetricRow]:
+        self.compute_day_calls.append(day)
+        return self.compute_day_rows

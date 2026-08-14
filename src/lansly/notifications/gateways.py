@@ -1,6 +1,5 @@
-from uuid import UUID
 
-from sqlalchemy import insert, select
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lansly.notifications.interfaces import (

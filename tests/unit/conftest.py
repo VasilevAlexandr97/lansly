@@ -9,7 +9,6 @@ from fakes.projects import (
 from fakes.users import FakeUserGateway, FakeUserRoleGateway
 
 from lansly.common.password_hasher_bcrypt import PasswordHasherBcrypt
-from lansly.projects.services import ProjectCategoryService
 
 
 @pytest.fixture

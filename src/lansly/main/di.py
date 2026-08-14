@@ -121,10 +121,12 @@ from lansly.projects.services import (
 from lansly.projects.usage_checker import GenerationLimitCheckerImpl
 from lansly.statistics.gateways import (
     SADailyMetricsGateway,
+    SANotificationDailyStatsGateway,
     SAProjectDailyStatsGateway,
 )
 from lansly.statistics.interfaces import (
     DailyMetricsGateway,
+    NotificationDailyStatsGateway,
     ProjectDailyStatsGateway,
 )
 from lansly.statistics.services import DailyMetricsService
@@ -550,6 +552,11 @@ class StatisticsProvider(Provider):
         SAProjectDailyStatsGateway,
         scope=Scope.REQUEST,
         provides=ProjectDailyStatsGateway,
+    )
+    notification_daily_stats_gateway = provide(
+        SANotificationDailyStatsGateway,
+        scope=Scope.REQUEST,
+        provides=NotificationDailyStatsGateway,
     )
     daily_metrics_service = provide(
         DailyMetricsService,

@@ -27,3 +27,13 @@ class ProjectDailyStatsGateway(Protocol):
     @abstractmethod
     async def compute_day(self, day: dt_type) -> list[MetricRow]:
         raise NotImplementedError
+
+
+class NotificationDailyStatsGateway(Protocol):
+    @abstractmethod
+    async def get_earliest_notification_date(self) -> dt_type | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def compute_day(self, day: dt_type) -> list[MetricRow]:
+        raise NotImplementedError
