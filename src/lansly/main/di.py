@@ -123,13 +123,15 @@ from lansly.statistics.gateways import (
     SADailyMetricsGateway,
     SANotificationDailyStatsGateway,
     SAProjectDailyStatsGateway,
+    SAWeeklyStatsGateway,
 )
 from lansly.statistics.interfaces import (
     DailyMetricsGateway,
     NotificationDailyStatsGateway,
     ProjectDailyStatsGateway,
+    WeeklyStatsGateway,
 )
-from lansly.statistics.services import DailyMetricsService
+from lansly.statistics.services import DailyMetricsService, WeeklyReportService
 from lansly.subscriptions.checker import (
     SubscriptionCheckerImpl,
 )
@@ -558,8 +560,17 @@ class StatisticsProvider(Provider):
         scope=Scope.REQUEST,
         provides=NotificationDailyStatsGateway,
     )
+    weekly_stats_gateway = provide(
+        SAWeeklyStatsGateway,
+        scope=Scope.REQUEST,
+        provides=WeeklyStatsGateway,
+    )
     daily_metrics_service = provide(
         DailyMetricsService,
+        scope=Scope.REQUEST,
+    )
+    weekly_report_service = provide(
+        WeeklyReportService,
         scope=Scope.REQUEST,
     )
 

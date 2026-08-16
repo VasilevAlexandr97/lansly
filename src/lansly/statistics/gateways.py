@@ -23,11 +23,12 @@ from lansly.statistics.consts import (
     category_dimension,
     source_dimension,
 )
-from lansly.statistics.dto import MetricRow
+from lansly.statistics.dto import CategoryInfo, MetricRow
 from lansly.statistics.interfaces import (
     DailyMetricsGateway,
     NotificationDailyStatsGateway,
     ProjectDailyStatsGateway,
+    WeeklyStatsGateway,
 )
 from lansly.statistics.models import DailyMetric
 
@@ -271,3 +272,48 @@ class SANotificationDailyStatsGateway(NotificationDailyStatsGateway):
                 value=ch_notif_count,
             ),
         ]
+
+
+class SAWeeklyStatsGateway(WeeklyStatsGateway):
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_metrics(
+        self,
+        start: dt_type,
+        end: dt_type,
+    ) -> list[MetricRow]:
+        stmt = select(DailyMetric).where(
+            DailyMetric.date >= start,
+            DailyMetric.date <= end,
+        )
+        rows = await self.session.scalars(stmt)
+        result = []
+        for row in rows:
+            try:
+                metric = DailyMetricName(row.metric)
+            except ValueError:
+                continue
+            result.append(
+                MetricRow(
+                    date=row.date,
+                    metric=metric,
+                    dimension=row.dimension,
+                    value=row.value,
+                ),
+            )
+        return result
+
+    async def get_categories(self) -> dict[tuple[str, str], CategoryInfo]:
+        stmt = select(ProjectCategory)
+        categories = (await self.session.scalars(stmt)).all()
+        by_id = {category.id: category for category in categories}
+        result = {}
+        for category in categories:
+            parent = by_id.get(category.parent_id)
+            key = (category.source, category.external_id)
+            result[key] = CategoryInfo(
+                title=category.title,
+                parent_title=parent.title if parent is not None else None,
+            )
+        return result

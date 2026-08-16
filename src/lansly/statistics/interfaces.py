@@ -2,7 +2,7 @@ from abc import abstractmethod
 from datetime import date as dt_type
 from typing import Protocol
 
-from lansly.statistics.dto import MetricRow
+from lansly.statistics.dto import CategoryInfo, MetricRow
 
 
 class DailyMetricsGateway(Protocol):
@@ -36,4 +36,18 @@ class NotificationDailyStatsGateway(Protocol):
 
     @abstractmethod
     async def compute_day(self, day: dt_type) -> list[MetricRow]:
+        raise NotImplementedError
+
+
+class WeeklyStatsGateway(Protocol):
+    @abstractmethod
+    async def get_metrics(
+        self,
+        start: dt_type,
+        end: dt_type,
+    ) -> list[MetricRow]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_categories(self) -> dict[tuple[str, str], CategoryInfo]:
         raise NotImplementedError

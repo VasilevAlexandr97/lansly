@@ -10,7 +10,7 @@ from lansly.main.di import (
     create_container,
 )
 from lansly.projects.services import ProjectCategoryService
-from lansly.statistics.services import DailyMetricsService
+from lansly.statistics.services import DailyMetricsService, WeeklyReportService
 from lansly.users.service import CreateAdminUserService
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     admin.add_argument("--username", required=True)
     admin.add_argument("--password", required=True)
     sub.add_parser("recalc-daily-metrics")
+    sub.add_parser("weekly-report")
     return parser
 
 
@@ -49,6 +50,10 @@ async def main():
             service = await c_req.get(DailyMetricsService)
             await service.recompute_all()
             logger.info("Recompute all daily metrics success")
+        elif args.command == "weekly-report":
+            service = await c_req.get(WeeklyReportService)
+            report = await service.build()
+            logger.info(report.to_json())
     await container.close()
 
 

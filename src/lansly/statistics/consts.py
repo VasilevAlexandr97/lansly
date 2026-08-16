@@ -2,6 +2,7 @@ from enum import StrEnum
 
 ALL_DIMENSION = "all"
 UNCATEGORIZED = "none"
+UNCATEGORIZED_LABEL = "Без категории"
 
 SOURCE_DIMENSION_PREFIX = "source:"
 CATEGORY_DIMENSION_PREFIX = "cat:"
@@ -33,3 +34,15 @@ def category_dimension(source: str, external_id: str | None) -> str:
     return (
         f"{CATEGORY_DIMENSION_PREFIX}{source}:{external_id or UNCATEGORIZED}"
     )
+
+
+def parse_category_dimension(
+    dimension: str,
+) -> tuple[str, str] | None:
+    if not dimension.startswith(CATEGORY_DIMENSION_PREFIX):
+        return None
+    rest = dimension[len(CATEGORY_DIMENSION_PREFIX) :]
+    source, sep, external_id = rest.partition(":")
+    if not sep:
+        return None
+    return source, external_id
