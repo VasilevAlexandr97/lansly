@@ -1044,8 +1044,7 @@ a.page-link:hover {
     width: 100%;
     max-width: 720px;
     margin: 0 auto 36px;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
+    height: auto;
     border: 1px solid var(--line);
     border-radius: 14px;
 }
@@ -1074,13 +1073,6 @@ a.page-link:hover {
 
 .article-meta-dot {
     color: var(--line);
-}
-
-.article-lead {
-    font-size: 1.15rem;
-    line-height: 1.7;
-    color: var(--ink-soft);
-    max-width: 640px;
 }
 
 .article-body {
@@ -1187,7 +1179,9 @@ a.page-link:hover {
 }
 
 .article-body table {
-    width: 100%;
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
     border-collapse: collapse;
     margin: 0 0 1.6em;
     font-size: .95rem;
