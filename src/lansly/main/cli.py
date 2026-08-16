@@ -57,5 +57,8 @@ async def main():
     await container.close()
 
 
+def cli() -> None:
+    asyncio.run(main())
+
 if __name__ == "__main__":
     asyncio.run(main())
