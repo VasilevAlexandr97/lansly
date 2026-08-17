@@ -40,6 +40,7 @@ dev = [
 
 [project.scripts]
 telegram-bot="lansly.main.telegram_bot:run_polling"
+lansly = "lansly.main.cli:cli"
 
 [tool.uv]
 package=true
