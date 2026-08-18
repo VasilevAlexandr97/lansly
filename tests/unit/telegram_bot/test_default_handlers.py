@@ -116,6 +116,62 @@ async def test_start_handler_ignores_message_without_from_user(
     assert bot_client.bot.sent_methods == []
 
 
+@pytest.mark.asyncio
+async def test_start_handler_deep_link_source(
+    bot_client: BotClient,
+    fake_auth: FakeTelegramAuth,
+):
+    await bot_client.send_message(text="/start source_site")
+    assert fake_auth.source == "site"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_source"),
+    [
+        ("source_site", "site"),
+        ("source_channel", "channel"),
+        ("source_ad", "ad"),
+        ("source_ref_123", "ref_123"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_start_handler_deep_link_various_sources(
+    bot_client: BotClient,
+    fake_auth: FakeTelegramAuth,
+    payload,
+    expected_source,
+):
+    await bot_client.send_message(text=f"/start {payload}")
+    assert fake_auth.source == expected_source
+
+
+@pytest.mark.asyncio
+async def test_start_handler_no_source(
+    bot_client: BotClient,
+    fake_auth: FakeTelegramAuth,
+):
+    await bot_client.send_message(text="/start")
+    assert fake_auth.source is None
+
+
+@pytest.mark.asyncio
+async def test_start_handler_unknown_deep_link_prefix(
+    bot_client: BotClient,
+    fake_auth: FakeTelegramAuth,
+):
+    await bot_client.send_message(text="/start promo_summer")
+    assert fake_auth.source is None
+
+
+@pytest.mark.asyncio
+async def test_start_handler_deep_link_empty_suffix(
+    bot_client: BotClient,
+    fake_auth: FakeTelegramAuth,
+):
+    await bot_client.send_message(text="/start source_")
+    assert fake_auth.source is None
+
+
 # Routers tests
 
 
