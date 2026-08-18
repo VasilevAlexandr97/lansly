@@ -7,9 +7,14 @@ from uuid import UUID, uuid7
 from lansly.auth.exceptions import AuthenticationError
 from lansly.auth.interfaces import IdProvider
 from lansly.common.interfaces.transaction_manager import TransactionManager
-from lansly.users.exceptions import CreateUserError, UserAlreadyExistsError
+from lansly.users.exceptions import (
+    CreateUserError,
+    SourceLengthError,
+    UserAlreadyExistsError,
+)
 from lansly.users.interfaces import UserGateway, UserRoleGateway
 from lansly.users.models import Role, User, UserRole
+from lansly.users.validators import source_validator
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +40,7 @@ class TelegramAuth:
         self.id_provider = id_provider
         self.transaction_manager = transaction_manager
 
-    async def auth(self) -> TelegramAuthResultDTO:
+    async def auth(self, source: str | None = None) -> TelegramAuthResultDTO:
         try:
             user = await self.id_provider.get_current_user()
             return TelegramAuthResultDTO(
@@ -48,9 +53,15 @@ class TelegramAuth:
             pass
         telegram_id = await self.id_provider.get_current_user_telegram_id()
         now = datetime.now(tz=UTC)
+        try:
+            source_validator(source)
+        except SourceLengthError as exc:
+            logger.warning(exc)
+            source = None
         new_user = User(
             id=uuid7(),
             telegram_id=telegram_id,
+            source=source,
             created_at=now,
             updated_at=now,
         )
