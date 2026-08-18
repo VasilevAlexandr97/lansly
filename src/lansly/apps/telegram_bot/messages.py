@@ -1,3 +1,5 @@
+import re
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -14,11 +16,19 @@ from lansly.subscriptions.dto import SubscriptionInfoDTO
 from lansly.subscriptions.models import PlanSlug
 
 
+def make_hashtag(title: str) -> str:
+    cleaned = re.sub(r"[^\w\s]", "", title, flags=re.UNICODE)
+    hashtag = cleaned.strip().replace(" ", "_").lower()
+    # Убираем дублирующиеся подчёркивания
+    hashtag = re.sub(r"_+", "_", hashtag)
+    hashtag = hashtag.strip("_")
+    return f"#{hashtag}"
+
+
 def project_message(project: Project, ref_id: int | None = None) -> str:
     project_link = f"https://kwork.ru/projects/{project.external_id}"
     if ref_id is not None:
         project_link += f"?ref={ref_id}"
-    hashtag = f"#{project.category.title.replace(' ', '').lower()}"
     return (
         "🔔 Новый проект\n\n"
         f"📂 {project.category.title}\n\n"
@@ -27,7 +37,7 @@ def project_message(project: Project, ref_id: int | None = None) -> str:
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
         f"📝 {project.description}\n\n"
-        f"{hashtag}\n\n"
+        f"{make_hashtag(project.category.title)}\n\n"
         f"🔗 <a href='{project_link}'>Ссылка на проект</a>"
     )
 
