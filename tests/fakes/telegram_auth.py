@@ -11,6 +11,8 @@ class FakeTelegramAuth:
             is_pro=False,
             is_admin=False,
         )
+        self.source: str | None = None
 
-    async def auth(self) -> TelegramAuthResultDTO:
+    async def auth(self, source: str | None = None) -> TelegramAuthResultDTO:
+        self.source = source
         return self.result

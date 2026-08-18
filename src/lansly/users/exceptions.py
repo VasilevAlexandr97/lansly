@@ -36,3 +36,7 @@ class UsernameLengthError(Exception):
 
 class PasswordLengthError(Exception):
     pass
+
+
+class SourceLengthError(Exception):
+    pass

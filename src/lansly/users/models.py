@@ -12,7 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lansly.infra.database.base import Base
-from lansly.users.consts import USERNAME_MAX_LENGTH
+from lansly.users.consts import SOURCE_MAX_LENGTH, USERNAME_MAX_LENGTH
 
 
 class Role(StrEnum):
@@ -32,6 +32,10 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(
         String(USERNAME_MAX_LENGTH),
         unique=True,
+        nullable=True,
+    )
+    source: Mapped[str | None] = mapped_column(
+        String(SOURCE_MAX_LENGTH),
         nullable=True,
     )
     password_hash: Mapped[str | None] = mapped_column(
@@ -58,6 +62,7 @@ class User(Base):
             f"id={self.id}, "
             f"telegram_id={self.telegram_id}, "
             f"username={self.username}, "
+            f"source={self.source}, "
             f"created_at={self.created_at}, "
             f"updated_at={self.updated_at}"
             ")"

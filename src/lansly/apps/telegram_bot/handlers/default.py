@@ -1,6 +1,9 @@
+import logging
+import re
+
 from aiogram import F, Router, types
 from aiogram.enums import ChatType
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from dishka.integrations.aiogram import FromDishka, inject
 
@@ -19,6 +22,8 @@ from lansly.auth.telegram_auth import TelegramAuth
 from lansly.common.dto import CurrentUser
 from lansly.preferences.services import UserCategoryFollowService
 
+logger = logging.getLogger(__name__)
+
 router = Router()
 router.message.filter(F.chat.type == ChatType.PRIVATE)
 router.callback_query.filter(
@@ -26,17 +31,31 @@ router.callback_query.filter(
 )
 
 
+SOURCE_PATTERN = re.compile(r"^source_(.+)$")
+
+
 @router.message(CommandStart())
+@router.message(
+    CommandStart(
+        deep_link=True,
+        magic=F.args.regexp(SOURCE_PATTERN),
+    ),
+)
 @inject
 async def start_handler(
     message: types.Message,
     auth: FromDishka[TelegramAuth],
     service: FromDishka[UserCategoryFollowService],
     state: FSMContext,
+    command: CommandObject,
 ):
     if message.from_user is None:
         return
-    result = await auth.auth()
+    source = None
+    if command.args is not None:
+        match = SOURCE_PATTERN.fullmatch(command.args)
+        source = match.group(1) if match is not None else None
+    result = await auth.auth(source=source)
     if result.is_new:
         text = start_message()
         keyboard = build_start_kbd()
