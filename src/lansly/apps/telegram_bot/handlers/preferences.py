@@ -9,6 +9,7 @@ from dishka.integrations.aiogram import FromDishka, inject
 from lansly.apps.telegram_bot.keyboards import (
     ManageAction,
     ManageFollowedCategoriesCB,
+    PresetPriceFilterCB,
     build_edit_profile_kbd,
     build_followed_categories_kbd,
     build_followed_subcategories_kbd,
@@ -333,6 +334,24 @@ async def start_set_price_filter(
     await call.message.edit_text(text=text, reply_markup=keyboard)
 
 
+@router.callback_query(PresetPriceFilterCB.filter())
+@inject
+async def set_preset_price_filter(
+    call: types.CallbackQuery,
+    service: FromDishka[UserPriceFilterService],
+    callback_data: PresetPriceFilterCB,
+    state: FSMContext,
+):
+    price_filter = await service.set_price_filter(
+        min_price=callback_data.min_price,
+        max_price=callback_data.max_price,
+    )
+    text = price_filter_menu_message(price_filter)
+    keyboard = build_price_filter_menu_kbd(with_clear=True)
+    await call.message.edit_text(text, reply_markup=keyboard)
+    await state.clear()
+
+
 @router.message(PriceFilterState.set)
 @inject
 async def set_price_filter(
@@ -375,6 +394,7 @@ async def set_price_filter(
         await state.set_data({"last_message_id": r.message_id})
     else:
         await state.clear()
+
 
 @router.callback_query(F.data == "clear_price_filter")
 @inject

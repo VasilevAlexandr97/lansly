@@ -11,3 +11,13 @@ MAX_LENGTH_FREELANCER_PROFILE = 2000
 
 MAX_PRICE_FILTER_VALUE = 10_000_000
 MIN_PRICE_FILTER_VALUE = 0
+
+
+PRICE_FILTER_PRESETS: tuple[tuple[int, int], ...] = (
+    (0, 1_000),
+    (1_000, 5_000),
+    (5_000, 15_000),
+    (15_000, 30_000),
+    (30_000, 100_000),
+    (100_000, 1_000_000),
+)
