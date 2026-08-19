@@ -9,6 +9,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from lansly.preferences.consts import PRICE_FILTER_PRESETS
 from lansly.preferences.dto import CategoryWithFollowedStatusDTO
 from lansly.projects.models import Project, ProjectCategory
 from lansly.subscriptions.models import PlanSlug
@@ -34,6 +35,11 @@ class ManageFollowedCategoriesCB(CallbackData, prefix="manage_cat"):
 
 class GenerateProposalCB(CallbackData, prefix="gen_proposal"):
     project_id: UUID
+
+
+class PresetPriceFilterCB(CallbackData, prefix="set_pf"):
+    min_price: int
+    max_price: int
 
 
 def build_start_kbd() -> InlineKeyboardMarkup:
@@ -258,8 +264,25 @@ def build_price_filter_menu_kbd(with_clear: bool = False):
     return builder.as_markup()
 
 
-def build_start_set_price_filter_kbd():
+def _format_price_preset(min_price: int, max_price: int) -> str:
+    return (
+        "-".join(f"{p:,}".replace(",", " ") for p in (min_price, max_price))
+        + "₽"
+    )
+
+
+def build_start_set_price_filter_kbd() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    for min_price, max_price in PRICE_FILTER_PRESETS:
+        builder.row(
+            InlineKeyboardButton(
+                text=_format_price_preset(min_price, max_price),
+                callback_data=PresetPriceFilterCB(
+                    min_price=min_price,
+                    max_price=max_price,
+                ).pack(),
+            ),
+        )
     builder.row(
         InlineKeyboardButton(
             text="✖️ Отмена",
