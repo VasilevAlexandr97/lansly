@@ -1,7 +1,17 @@
-from starlette_admin import StringField
+from sqlalchemy.orm.attributes import instance_state
+from starlette_admin import ComputedField
 from starlette_admin.contrib.sqla import ModelView
 
 from lansly.projects.models import Customer, Project, ProjectProposal
+
+
+class CustomerUsernameField(ComputedField):
+    async def parse_obj(self, request, obj):  # noqa: ARG002
+        customer = instance_state(obj).dict.get("customer")
+        if customer is not None:
+            return f"{customer.username}"
+        return None
+
 
 
 class ProjectView(ModelView):
@@ -12,12 +22,7 @@ class ProjectView(ModelView):
         Project.price,
         Project.possible_price_limit,
         Project.customer,
-        StringField(
-            "username",
-            getter=lambda _, obj: (
-                f"{obj.customer.username}" if obj.customer else None
-            ),
-        ),
+        CustomerUsernameField("username"),
         Project.offers,
         Project.created_at,
     ]
