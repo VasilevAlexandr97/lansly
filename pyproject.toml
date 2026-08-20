@@ -26,7 +26,7 @@ dependencies = [
     "python-slugify>=8.0.4",
     "redis[hiredis]>=7.4.0",
     "sqlalchemy>=2.0.51",
-    "starlette-admin>=0.17.0",
+    "starlette-admin>=1.0.0",
     "taskiq-redis>=1.2.3",
     "uvloop>=0.22.1",
 ]

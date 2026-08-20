@@ -59,6 +59,10 @@ class SAUserGateway(UserGateway):
         result = await self.session.scalar(stmt)
         return bool(result)
 
+    async def get_username(self, user_id: UUID) -> str | None:
+        stmt = select(User.username).where(User.id == user_id)
+        return await self.session.scalar(stmt)
+
 
 class SAUserRoleGateway(UserRoleGateway):
     def __init__(self, session: AsyncSession):

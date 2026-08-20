@@ -29,6 +29,7 @@ from lansly.projects.gateways import (
 )
 from lansly.projects.generators import ProjectProposalGenerator
 from lansly.projects.interfaces import (
+    CustomerGateway,
     GenerationLimitChecker,
     MarketPlaceClient,
     ProjectCategoryGateway,
@@ -36,6 +37,7 @@ from lansly.projects.interfaces import (
     ProposalGenerationQueue,
 )
 from lansly.projects.models import (
+    Customer,
     Project,
     ProjectCategory,
     ProjectProposal,
@@ -136,11 +138,13 @@ class ProjectSyncService:
         self,
         category_gateway: ProjectCategoryGateway,
         project_gateway: ProjectGateway,
+        customer_gateway: CustomerGateway,
         transaction_manager: TransactionManager,
         marketplace_client: MarketPlaceClient,
     ):
         self.category_gateway = category_gateway
         self.project_gateway = project_gateway
+        self.customer_gateway = customer_gateway
         self.transaction_manager = transaction_manager
         self.marketplace_client = marketplace_client
 
@@ -168,6 +172,8 @@ class ProjectSyncService:
         )
         if not projects:
             return []
+
+        # 1. Фильтруем только новые проекты
         external_ids = [project.id for project in projects]
         missing_project_ids = (
             await self.project_gateway.get_missing_external_ids(
@@ -175,10 +181,13 @@ class ProjectSyncService:
                 source=ProjectSource.KWORK,
             )
         )
+        if not missing_project_ids:
+            return []
+        new_projects = [p for p in projects if p.id in missing_project_ids]
+
+        # 2. Категории только из новых проектов
         cats_external_ids = [
-            project.category_id
-            for project in projects
-            if project.category_id is not None
+            p.category_id for p in new_projects if p.category_id
         ]
         categories = (
             await self.category_gateway.get_categories_by_external_ids(
@@ -187,50 +196,67 @@ class ProjectSyncService:
             )
         )
         categories_map: dict[str, UUID] = {
-            category.external_id: category.id for category in categories
+            c.external_id: c.id for c in categories
         }
-        missing_categories = {
-            category_id
-            for category_id in cats_external_ids
-            if category_id is not None
-        } - set(categories_map)
+
+        missing_categories = set(cats_external_ids) - set(categories_map)
         if missing_categories:
             logger.warning(
                 "Kwork projects reference categories missing in DB: %s",
                 ", ".join(sorted(missing_categories)),
             )
-        new_projects: list[Project] = []
-        if missing_project_ids:
-            seen_keys: set[tuple[str, str]] = set()
-            for project in projects:
-                if project.id not in missing_project_ids:
-                    continue
-                key = (project.id, ProjectSource.KWORK)
-                if key in seen_keys:
-                    logger.warning(
-                        f"Skip duplicate kwork project id={project.id}",
-                    )
-                    continue
-                seen_keys.add(key)
-                new_projects.append(
-                    Project(
-                        id=uuid7(),
-                        external_id=project.id,
-                        source=ProjectSource.KWORK,
-                        category_id=categories_map.get(project.category_id),
-                        price=project.price,
-                        possible_price_limit=project.possible_price_limit,
-                        title=project.title,
-                        description=self._clean_project_description(
-                            project.description,
-                        ),
-                        offers=project.offers,
-                    ),
+
+        now = datetime.now(UTC)
+        unique_customers: dict[str, Customer] = {}
+        for p in new_projects:
+            if p.customer and p.customer.id not in unique_customers:
+                unique_customers[p.customer.id] = Customer(
+                    id=uuid7(),
+                    external_id=p.customer.id,
+                    source=ProjectSource.KWORK,
+                    username=p.customer.username,
+                    profile_picture=p.customer.profile_picture,
+                    user_projects_count=p.customer.user_projects_count,
+                    user_hired_percent=p.customer.user_hired_percent,
+                    created_at=now,
+                    updated_at=now,
                 )
-        if new_projects:
-            await self.project_gateway.bulk_insert(new_projects)
+
+        upserted = []
+        if unique_customers:
+            upserted = await self.customer_gateway.bulk_upsert(
+                list(unique_customers.values()),
+            )
+        customer_map = {c.external_id: c.id for c in upserted}
+
+        projects_to_add: dict[str, Project] = {}
+        for p in new_projects:
+            key = f"{p.id}:{ProjectSource.KWORK}"
+            if key not in projects_to_add:
+                customer_id = (
+                    customer_map.get(p.customer.id) if p.customer else None
+                )
+                projects_to_add[key] = Project(
+                    id=uuid7(),
+                    external_id=p.id,
+                    source=ProjectSource.KWORK,
+                    category_id=categories_map.get(p.category_id),
+                    customer_id=customer_id,
+                    price=p.price,
+                    possible_price_limit=p.possible_price_limit,
+                    title=p.title,
+                    description=self._clean_project_description(
+                        p.description,
+                    ),
+                    offers=p.offers,
+                    created_at=now,
+                )
+        if projects_to_add:
+            await self.project_gateway.bulk_insert(
+                list(projects_to_add.values()),
+            )
             await self.transaction_manager.commit()
-        return [project.id for project in new_projects]
+        return [project.id for project in projects_to_add.values()]
 
 
 class ProjectProposalRequestService:

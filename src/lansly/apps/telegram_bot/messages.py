@@ -29,6 +29,21 @@ def project_message(project: Project, ref_id: int | None = None) -> str:
     project_link = f"https://kwork.ru/projects/{project.external_id}"
     if ref_id is not None:
         project_link += f"?ref={ref_id}"
+
+    customer_block = ""
+    if project.customer:
+        customer_block = (
+            f"👤 Заказчик\n"
+            f"• Проектов: {project.customer.user_projects_count or 0}\n"
+            f"• Нанято: {project.customer.user_hired_percent or 0}%\n"
+        )
+        username = project.customer.username
+        if username is not None:
+            profile_link = f"https://kwork.ru/user/{username}"
+            customer_block += (
+                f"• Профиль: <a href='{profile_link}'>{username}</a>\n"
+            )
+
     return (
         "🔔 Новый проект\n\n"
         f"📂 {project.category.title}\n\n"
@@ -36,6 +51,7 @@ def project_message(project: Project, ref_id: int | None = None) -> str:
         f"💰 Бюджет\n"
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
+        f"{customer_block}\n"
         f"📝 {project.description}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
         f"🔗 <a href='{project_link}'>Ссылка на проект</a>"

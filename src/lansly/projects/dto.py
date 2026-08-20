@@ -31,3 +31,13 @@ class MarketPlaceProject:
     title: str
     description: str
     offers: int
+    customer: "MarketPlaceCustomer | None"
+
+
+@dataclass
+class MarketPlaceCustomer:
+    id: str
+    username: str | None = None
+    profile_picture: str | None = None
+    user_projects_count: int | None = None
+    user_hired_percent: int | None = None

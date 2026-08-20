@@ -37,6 +37,10 @@ class UserGateway(Protocol):
     async def exists(self, user_id: UUID) -> bool:
         raise NotImplementedError
 
+    @abstractmethod
+    async def get_username(self, user_id: UUID) -> str | None:
+        raise NotImplementedError
+
 
 class UserRoleGateway(Protocol):
     @abstractmethod

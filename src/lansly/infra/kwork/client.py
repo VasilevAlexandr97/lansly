@@ -2,7 +2,11 @@ import logging
 
 from kwork import Kwork
 
-from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
+from lansly.projects.dto import (
+    MarketPlaceCategory,
+    MarketPlaceCustomer,
+    MarketPlaceProject,
+)
 from lansly.projects.interfaces import MarketPlaceClient
 
 logger = logging.getLogger(__name__)
@@ -83,6 +87,15 @@ class KworkClient(MarketPlaceClient):
                     title=project.title or "",
                     description=project.description or "",
                     offers=project.offers if project.offers is not None else 0,
+                    customer=MarketPlaceCustomer(
+                        id=str(project.user_id),
+                        username=project.username,
+                        profile_picture=project.profile_picture,
+                        user_projects_count=project.user_projects_count,
+                        user_hired_percent=project.user_hired_percent,
+                    )
+                    if project.user_id is not None
+                    else None,
                 ),
             )
         return result

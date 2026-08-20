@@ -2,6 +2,7 @@ import pytest
 
 from fakes.infra import FakeTransactionManager
 from fakes.projects import (
+    FakeCustomerGateway,
     FakeMarketPlaceClient,
     FakeProjectCategoryGateway,
     FakeProjectGateway,
@@ -44,3 +45,8 @@ def category_gateway() -> FakeProjectCategoryGateway:
 @pytest.fixture
 def project_gateway() -> FakeProjectGateway:
     return FakeProjectGateway()
+
+
+@pytest.fixture
+def customer_gateway() -> FakeCustomerGateway:
+    return FakeCustomerGateway()
