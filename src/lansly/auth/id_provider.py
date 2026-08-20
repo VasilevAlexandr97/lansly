@@ -138,10 +138,12 @@ class SessionIdProvider(IdProvider):
 
     async def get_current_user(self) -> CurrentUser:
         session = await self._get_session()
+        username = await self.user_gateway.get_username(session.user_id)
         is_pro = await self.sub_checker.is_pro_subscription(session.user_id)
         role = await self._get_role(session.user_id)
         return CurrentUser(
             id=session.user_id,
+            username=username,
             is_pro=is_pro,
             is_admin=role == Role.ADMIN,
         )

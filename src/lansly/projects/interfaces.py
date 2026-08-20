@@ -4,6 +4,7 @@ from uuid import UUID
 
 from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
 from lansly.projects.models import (
+    Customer,
     Project,
     ProjectCategory,
     UserGenerationUsage,
@@ -49,11 +50,18 @@ class ProjectGateway(Protocol):
         self,
         project_ids: list[UUID],
         with_category: bool = False,
+        with_customer: bool = False,
     ) -> list[Project]:
         raise NotImplementedError
 
     @abstractmethod
     async def get_by_id(self, project_id: UUID) -> Project | None:
+        raise NotImplementedError
+
+
+class CustomerGateway(Protocol):
+    @abstractmethod
+    async def bulk_upsert(self, customers: list[Customer]) -> list[Customer]:
         raise NotImplementedError
 
 

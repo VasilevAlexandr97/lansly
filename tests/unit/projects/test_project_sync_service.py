@@ -4,14 +4,30 @@ import pytest
 
 from fakes.infra import FakeTransactionManager
 from fakes.projects import (
+    FakeCustomerGateway,
     FakeMarketPlaceClient,
     FakeProjectCategoryGateway,
     FakeProjectGateway,
 )
 
-from lansly.projects.dto import MarketPlaceProject
+from lansly.projects.dto import MarketPlaceCustomer, MarketPlaceProject
 from lansly.projects.models import ProjectCategory, ProjectSource
 from lansly.projects.services import ProjectSyncService
+
+
+def make_customer(
+    external_id: str,
+    *,
+    username: str | None = "testuser",
+    user_projects_count: int | None = 10,
+    user_hired_percent: int | None = 50,
+) -> MarketPlaceCustomer:
+    return MarketPlaceCustomer(
+        id=external_id,
+        username=username,
+        user_projects_count=user_projects_count,
+        user_hired_percent=user_hired_percent,
+    )
 
 
 def make_project(
@@ -23,6 +39,7 @@ def make_project(
     price: int = 100,
     possible_price_limit: int = 200,
     offers: int = 3,
+    customer: MarketPlaceCustomer | None = None,
 ) -> MarketPlaceProject:
     return MarketPlaceProject(
         id=external_id,
@@ -32,6 +49,7 @@ def make_project(
         title=title,
         description=description,
         offers=offers,
+        customer=customer,
     )
 
 
@@ -52,12 +70,14 @@ def make_category(
 def sync_service(
     category_gateway: FakeProjectCategoryGateway,
     project_gateway: FakeProjectGateway,
+    customer_gateway: FakeCustomerGateway,
     marketplace_client: FakeMarketPlaceClient,
     txn: FakeTransactionManager,
 ) -> ProjectSyncService:
     return ProjectSyncService(
         category_gateway=category_gateway,
         project_gateway=project_gateway,
+        customer_gateway=customer_gateway,
         marketplace_client=marketplace_client,
         transaction_manager=txn,
     )
@@ -198,6 +218,104 @@ async def test_empty_projects_list(
     assert result == []
     assert project_gateway.bulk_insert_calls == 0
     assert txn.commits == 0
+
+
+@pytest.mark.asyncio
+async def test_upserts_customer_from_project(
+    sync_service: ProjectSyncService,
+    customer_gateway: FakeCustomerGateway,
+    project_gateway: FakeProjectGateway,
+    marketplace_client: FakeMarketPlaceClient,
+):
+    customer = make_customer("c1", username="ivan")
+    marketplace_client.projects = [
+        make_project("p1", "1", customer=customer),
+    ]
+
+    await sync_service.get_and_save_new_projects()
+
+    assert customer_gateway.upsert_calls == 1
+    assert len(customer_gateway.upserted) == 1
+    assert customer_gateway.upserted[0].external_id == "c1"
+    assert customer_gateway.upserted[0].username == "ivan"
+    assert project_gateway.bulk_inserted[0].customer_id is not None
+
+
+@pytest.mark.asyncio
+async def test_deduplicates_customers_across_projects(
+    sync_service: ProjectSyncService,
+    customer_gateway: FakeCustomerGateway,
+    project_gateway: FakeProjectGateway,
+    marketplace_client: FakeMarketPlaceClient,
+):
+    customer = make_customer("c1")
+    marketplace_client.projects = [
+        make_project("p1", "1", customer=customer),
+        make_project("p2", "2", customer=customer),
+    ]
+
+    await sync_service.get_and_save_new_projects()
+
+    assert customer_gateway.upsert_calls == 1
+    assert len(customer_gateway.upserted) == 1
+
+
+@pytest.mark.asyncio
+async def test_maps_customer_id_to_project(
+    sync_service: ProjectSyncService,
+    customer_gateway: FakeCustomerGateway,
+    project_gateway: FakeProjectGateway,
+    marketplace_client: FakeMarketPlaceClient,
+):
+    customer = make_customer("c1")
+    marketplace_client.projects = [
+        make_project("p1", "1", customer=customer),
+    ]
+
+    await sync_service.get_and_save_new_projects()
+
+    project = project_gateway.bulk_inserted[0]
+    upserted_customer = customer_gateway.upserted[0]
+    assert project.customer_id == upserted_customer.id
+
+
+@pytest.mark.asyncio
+async def test_project_without_customer_gets_null_id(
+    sync_service: ProjectSyncService,
+    customer_gateway: FakeCustomerGateway,
+    project_gateway: FakeProjectGateway,
+    marketplace_client: FakeMarketPlaceClient,
+):
+    marketplace_client.projects = [
+        make_project("p1", "1", customer=None),
+    ]
+
+    await sync_service.get_and_save_new_projects()
+
+    assert customer_gateway.upsert_calls == 0
+    assert project_gateway.bulk_inserted[0].customer_id is None
+
+
+@pytest.mark.asyncio
+async def test_multiple_distinct_customers(
+    sync_service: ProjectSyncService,
+    customer_gateway: FakeCustomerGateway,
+    project_gateway: FakeProjectGateway,
+    marketplace_client: FakeMarketPlaceClient,
+):
+    c1 = make_customer("c1", username="alice")
+    c2 = make_customer("c2", username="bob")
+    marketplace_client.projects = [
+        make_project("p1", "1", customer=c1),
+        make_project("p2", "2", customer=c2),
+    ]
+
+    await sync_service.get_and_save_new_projects()
+
+    assert customer_gateway.upsert_calls == 1
+    assert len(customer_gateway.upserted) == 2
+    ids = {c.external_id for c in customer_gateway.upserted}
+    assert ids == {"c1", "c2"}
 
 
 def test_clean_description_unescapes_and_removes_html(

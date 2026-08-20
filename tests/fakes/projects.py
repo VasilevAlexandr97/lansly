@@ -1,5 +1,5 @@
 from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
-from lansly.projects.models import Project, ProjectCategory
+from lansly.projects.models import Project, ProjectCategory, Customer
 
 
 class FakeProjectCategoryGateway:
@@ -47,6 +47,17 @@ class FakeProjectGateway:
         source: str,
     ) -> set[str]:
         return set(external_ids) - self.existing_external_ids
+
+
+class FakeCustomerGateway:
+    def __init__(self):
+        self.upserted: list[Customer] = []
+        self.upsert_calls = 0
+
+    async def bulk_upsert(self, customers: list[Customer]) -> list[Customer]:
+        self.upsert_calls += 1
+        self.upserted.extend(customers)
+        return customers
 
 
 class FakeMarketPlaceClient:

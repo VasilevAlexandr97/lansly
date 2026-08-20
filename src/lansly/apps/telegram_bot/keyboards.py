@@ -294,6 +294,9 @@ def build_start_set_price_filter_kbd() -> InlineKeyboardMarkup:
 
 def build_project_kbd(project: Project, ref_id: int | None = None):
     project_link = f"https://kwork.ru/projects/{project.external_id}"
+    customer_link = None
+    if project.customer and project.customer.username:
+        customer_link = f"https://kwork.ru/user/{project.customer.username}"
     if ref_id is not None:
         project_link += f"?ref={ref_id}"
     builder = InlineKeyboardBuilder()
@@ -303,11 +306,12 @@ def build_project_kbd(project: Project, ref_id: int | None = None):
             callback_data=GenerateProposalCB(project_id=project.id).pack(),
         ),
     )
+    if customer_link:
+        builder.row(
+            InlineKeyboardButton(text="👤 Заказчик", url=customer_link),
+        )
     builder.row(
-        InlineKeyboardButton(
-            text="🔗 Проект",
-            url=project_link,
-        ),
+        InlineKeyboardButton(text="🔗 Проект", url=project_link),
     )
     builder.row(
         InlineKeyboardButton(

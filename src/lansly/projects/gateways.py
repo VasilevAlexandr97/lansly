@@ -7,11 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from lansly.projects.interfaces import (
+    CustomerGateway,
     ProjectCategoryGateway,
     ProjectGateway,
     UserGenerationUsageGateway,
 )
 from lansly.projects.models import (
+    Customer,
     Project,
     ProjectCategory,
     ProjectProposal,
@@ -84,10 +86,12 @@ class SAProjectGateway(ProjectGateway):
                 "source": project.source,
                 "title": project.title,
                 "category_id": project.category_id,
+                "customer_id": project.customer_id,
                 "price": project.price,
                 "possible_price_limit": project.possible_price_limit,
                 "description": project.description,
                 "offers": project.offers,
+                "created_at": project.created_at,
             }
             for project in projects
         ]
@@ -116,18 +120,58 @@ class SAProjectGateway(ProjectGateway):
         self,
         project_ids: list[UUID],
         with_category: bool = False,
+        with_customer: bool = False,
     ) -> list[Project]:
         if not project_ids:
             return []
         stmt = select(Project).where(Project.id.in_(project_ids))
         if with_category:
             stmt = stmt.options(selectinload(Project.category))
+        if with_customer:
+            stmt = stmt.options(selectinload(Project.customer))
         result = await self.session.scalars(stmt)
         return list(result.all())
 
     async def get_by_id(self, project_id: UUID) -> Project | None:
         stmt = select(Project).where(Project.id == project_id)
         return await self.session.scalar(stmt)
+
+
+class SACustomerGateway(CustomerGateway):
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def bulk_upsert(self, customers: list[Customer]) -> list[Customer]:
+        if not customers:
+            return []
+        values = [
+            {
+                "id": c.id,
+                "external_id": c.external_id,
+                "source": c.source,
+                "username": c.username,
+                "profile_picture": c.profile_picture,
+                "user_projects_count": c.user_projects_count,
+                "user_hired_percent": c.user_hired_percent,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+            }
+            for c in customers
+        ]
+        stmt = pg_insert(Customer).values(values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["external_id", "source"],
+            set_={
+                "username": stmt.excluded.username,
+                "profile_picture": stmt.excluded.profile_picture,
+                "user_projects_count": stmt.excluded.user_projects_count,
+                "user_hired_percent": stmt.excluded.user_hired_percent,
+                "updated_at": stmt.excluded.updated_at,
+            },
+        ).returning(Customer)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
 
 class ProjectProposalRequestGateway:

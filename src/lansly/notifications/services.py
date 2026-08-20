@@ -79,6 +79,7 @@ class ProjectNotificationService:
         projects = await self.project_gateway.get_projects_by_ids(
             project_ids,
             with_category=True,
+            with_customer=True,
         )
         logger.info(f"NOTIFY NEW PROJECTS: {projects}")
 
@@ -106,6 +107,8 @@ class ProjectNotificationService:
                 )
                 project_text = f"{project.title} {project.description}"
                 for user in users:
+                    if user.telegram_id is None:
+                        continue
                     user_stop_words = stop_words_map.get(user.id, [])
                     if self._contains_stop_word(project_text, user_stop_words):
                         continue
@@ -158,6 +161,7 @@ class ProjectNotificationService:
         projects = await self.project_gateway.get_projects_by_ids(
             project_ids=project_ids,
             with_category=True,
+            with_customer=True,
         )
         high_value_projects = [pr for pr in projects if pr.price >= min_price]
         logger.info(f"NOTIFY NEW PROJECTS TO CHANNEL: {high_value_projects}")

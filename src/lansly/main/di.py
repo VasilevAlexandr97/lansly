@@ -100,6 +100,7 @@ from lansly.preferences.services import (
 from lansly.projects.gateways import (
     ProjectProposalGateway,
     ProjectProposalRequestGateway,
+    SACustomerGateway,
     SAProjectCategoryGateway,
     SAProjectGateway,
     SAUserGenerationUsageGateway,
@@ -107,6 +108,7 @@ from lansly.projects.gateways import (
 )
 from lansly.projects.generators import ProjectProposalGenerator
 from lansly.projects.interfaces import (
+    CustomerGateway,
     GenerationLimitChecker,
     ProjectCategoryGateway,
     ProjectGateway,
@@ -330,6 +332,11 @@ class ProjectProvider(Provider):
         scope=Scope.REQUEST,
         provides=ProjectGateway,
     )
+    customer_gateway = provide(
+        SACustomerGateway,
+        scope=Scope.REQUEST,
+        provides=CustomerGateway,
+    )
     project_proposal_gateway = provide(
         ProjectProposalGateway,
         scope=Scope.REQUEST,
@@ -369,12 +376,14 @@ class ProjectProvider(Provider):
         self,
         category_gateway: ProjectCategoryGateway,
         project_gateway: ProjectGateway,
+        customer_gateway: CustomerGateway,
         transaction_manager: TransactionManager,
         kwork_client: KworkClient,
     ) -> ProjectSyncService:
         return ProjectSyncService(
             category_gateway=category_gateway,
             project_gateway=project_gateway,
+            customer_gateway=customer_gateway,
             transaction_manager=transaction_manager,
             marketplace_client=kwork_client,
         )

@@ -16,6 +16,7 @@ from lansly.apps.web.admin_panel.routers.media import (
 )
 from lansly.apps.web.admin_panel.views.articles import ArticleView
 from lansly.apps.web.admin_panel.views.projects import (
+    CustomerView,
     ProjectProposalView,
     ProjectView,
 )
@@ -28,7 +29,7 @@ from lansly.main.di import (
     AuthProvider,
     create_container,
 )
-from lansly.projects.models import Project, ProjectProposal
+from lansly.projects.models import Customer, Project, ProjectProposal
 from lansly.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -52,13 +53,15 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
 def setup_views(admin: Admin) -> None:
     admin.add_view(UserView(User))
     admin.add_view(ProjectView(Project))
+    admin.add_view(CustomerView(Customer))
     admin.add_view(ProjectProposalView(ProjectProposal))
     admin.add_view(ArticleView(Article))
 
 
 def setup_admin(engine: AsyncEngine, app: FastAPI, config: Config) -> None:
     admin = Admin(
-        engine=engine,
+        session_provider=engine,
+        title="Lansly admin panel",
         debug=config.debug,
         auth_provider=AdminPanelAuthProvider(),
     )
