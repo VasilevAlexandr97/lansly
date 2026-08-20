@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class CoverImageField(ImageField):
-    async def serialize_value(self, request, value, action):
+    async def serialize_value(self, request, value):
         if (
             isinstance(value, dict)
             and value.get("url")
@@ -56,7 +56,7 @@ class ArticleView(ModelView):
             ),
             extra_options={
                 "plugins": (
-                    "advlist autolink link image lists charmap code paste table "
+                    "advlist autolink link image lists charmap code table "
                     "preview fullscreen searchreplace wordcount"
                 ),
                 "block_formats": (

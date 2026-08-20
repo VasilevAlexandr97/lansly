@@ -2,7 +2,6 @@ import logging
 
 from dishka import AsyncContainer
 from starlette.requests import Request
-from starlette.responses import Response
 from starlette_admin.auth import AdminUser, AuthProvider
 from starlette_admin.exceptions import LoginFailed
 
@@ -44,19 +43,16 @@ class AdminPanelAuthProvider(AuthProvider):
                     required_role=Role.ADMIN,
                 )
                 return
-            except AuthenticationError:
-                logger.info(f"User {username} auth error")
             except AlreadyAuthenticatedError:
                 logger.info(f"User {username} already authenticated")
                 return
-            except UserNotFoundByUsernameError:
-                logger.info(f"User {username} not found")
-                raise LoginFailed("Authenticated Error")
             except (
+                AuthenticationError,
                 UsernameLengthError,
                 InvalidUsernameError,
                 PasswordLengthError,
                 InvalidPasswordError,
+                UserNotFoundByUsernameError,
             ):
                 logger.info(f"Invalid username {username} or password")
         raise LoginFailed("Invalid username or password")

@@ -11,6 +11,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette_admin.contrib.sqla import Admin
 
 from lansly.apps.web.admin_panel.auth import AdminPanelAuthProvider
+from lansly.apps.web.admin_panel.middlewares.security import (
+    AdminSecurityHeadersMiddleware,
+)
 from lansly.apps.web.admin_panel.routers.media import (
     router as upload_media_router,
 )
@@ -48,6 +51,7 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
         secret_key=config.admin_panel.session_secret_key,
         same_site="strict",
     )
+    app.add_middleware(AdminSecurityHeadersMiddleware)
 
 
 def setup_views(admin: Admin) -> None:
