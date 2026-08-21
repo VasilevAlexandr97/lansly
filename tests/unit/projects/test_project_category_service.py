@@ -5,8 +5,9 @@ import pytest
 from fakes.infra import FakeTransactionManager
 from fakes.projects import FakeMarketPlaceClient, FakeProjectCategoryGateway
 
+from lansly.projects.consts import MarketPlace
 from lansly.projects.dto import MarketPlaceCategory
-from lansly.projects.models import ProjectCategory, ProjectSource
+from lansly.projects.models import ProjectCategory
 from lansly.projects.services import ProjectCategoryService
 
 
@@ -18,7 +19,7 @@ def category_service(
 ) -> ProjectCategoryService:
     return ProjectCategoryService(
         gateway=category_gateway,
-        marketplace_client=marketplace_client,
+        marketplace_clients=[marketplace_client],
         transaction_manager=txn,
     )
 
@@ -26,10 +27,12 @@ def category_service(
 def category(
     external_id: str,
     title: str,
+    source: str = MarketPlace.KWORK,
     *subs: MarketPlaceCategory,
 ) -> MarketPlaceCategory:
     return MarketPlaceCategory(
         id=external_id,
+        source=source,
         title=title,
         subcategories=tuple(subs),
     )
@@ -46,8 +49,17 @@ async def test_import_creates_new_categories_and_subcategories(
         category(
             "1",
             "Дизайн",
-            MarketPlaceCategory(id="10", title="Логотипы"),
-            MarketPlaceCategory(id="11", title="Баннеры"),
+            MarketPlace.KWORK,
+            MarketPlaceCategory(
+                id="10",
+                source=MarketPlace.KWORK,
+                title="Логотипы",
+            ),
+            MarketPlaceCategory(
+                id="11",
+                source=MarketPlace.KWORK,
+                title="Баннеры",
+            ),
         ),
         category("2", "Разработка"),
     ]
@@ -62,7 +74,7 @@ async def test_import_creates_new_categories_and_subcategories(
     design = by_external["1"]
     assert isinstance(design.id, UUID)
     assert design.parent_id is None
-    assert design.source == ProjectSource.KWORK
+    assert design.source == MarketPlace.KWORK
     assert design.title == "Дизайн"
 
     assert by_external["10"].parent_id == design.id
@@ -81,7 +93,7 @@ async def test_import_reuses_existing_ids(
         ProjectCategory(
             id=existing_id,
             external_id="1",
-            source=ProjectSource.KWORK,
+            source=MarketPlace.KWORK,
             title="Старый заголовок",
             parent_id=None,
         ),
@@ -90,7 +102,12 @@ async def test_import_reuses_existing_ids(
         category(
             "1",
             "Дизайн",
-            MarketPlaceCategory(id="10", title="Логотипы"),
+            MarketPlace.KWORK,
+            MarketPlaceCategory(
+                id="10",
+                source=MarketPlace.KWORK,
+                title="Логотипы",
+            ),
         ),
     ]
     await category_service.import_categories()
@@ -107,11 +124,18 @@ async def test_import_skips_categories_without_title(
     marketplace_client: FakeMarketPlaceClient,
 ):
     marketplace_client.categories = [
-        MarketPlaceCategory(id="1", title=""),
+        MarketPlaceCategory(id="1", source=MarketPlace.KWORK, title=""),
         MarketPlaceCategory(
             id="2",
+            source=MarketPlace.KWORK,
             title="Разработка",
-            subcategories=(MarketPlaceCategory(id="20", title=""),),
+            subcategories=(
+                MarketPlaceCategory(
+                    id="20",
+                    source=MarketPlace.KWORK,
+                    title="",
+                ),
+            ),
         ),
     ]
 
@@ -156,21 +180,128 @@ async def test_import_skips_duplicate_category_ids(
     category_service: ProjectCategoryService,
     category_gateway: FakeProjectCategoryGateway,
     marketplace_client: FakeMarketPlaceClient,
-    caplog,
 ):
     marketplace_client.categories = [
         category(
             "1",
             "Дизайн",
-            MarketPlaceCategory(id="10", title="Логотипы"),
+            MarketPlace.KWORK,
+            MarketPlaceCategory(
+                id="10",
+                source=MarketPlace.KWORK,
+                title="Логотипы",
+            ),
         ),
         category(
             "2",
             "Разработка",
-            MarketPlaceCategory(id="10", title="Логотипы"),
+            MarketPlace.KWORK,
+            MarketPlaceCategory(
+                id="10",
+                source=MarketPlace.KWORK,
+                title="Логотипы",
+            ),
         ),
     ]
     await category_service.import_categories()
     by_external = {c.external_id: c for c in category_gateway.upserted}
     assert set(by_external) == {"1", "10", "2"}
-    assert "10" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_import_categories_from_multiple_sources(
+    category_gateway: FakeProjectCategoryGateway,
+    txn: FakeTransactionManager,
+):
+    kwork = FakeMarketPlaceClient(
+        categories=[
+            category("k1", "Kwork Cat", source=MarketPlace.KWORK),
+        ]
+    )
+    flru = FakeMarketPlaceClient(
+        categories=[
+            category("f1", "FlRu Cat", source=MarketPlace.FLRU),
+        ]
+    )
+    service = ProjectCategoryService(
+        gateway=category_gateway,
+        marketplace_clients=[kwork, flru],
+        transaction_manager=txn,
+    )
+
+    await service.import_categories()
+
+    assert category_gateway.upsert_calls == 2  # once per source
+    by_ext = {c.external_id: c for c in category_gateway.upserted}
+    assert by_ext["k1"].source == MarketPlace.KWORK
+    assert by_ext["f1"].source == MarketPlace.FLRU
+    assert txn.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_same_external_id_different_sources_no_collision(
+    category_gateway: FakeProjectCategoryGateway,
+):
+    kwork = FakeMarketPlaceClient(
+        categories=[
+            category("1", "Kwork Design", source=MarketPlace.KWORK),
+        ]
+    )
+    flru = FakeMarketPlaceClient(
+        categories=[
+            category("1", "FlRu Design", source=MarketPlace.FLRU),
+        ]
+    )
+    service = ProjectCategoryService(
+        gateway=category_gateway,
+        marketplace_clients=[kwork, flru],
+        transaction_manager=FakeTransactionManager(),
+    )
+
+    await service.import_categories()
+
+    by_ext = {c.external_id: c for c in category_gateway.upserted}
+    assert len(by_ext) == 1  # same key
+    # Последний upsert побеждает (flru)
+    assert by_ext["1"].source == MarketPlace.FLRU
+    assert by_ext["1"].title == "FlRu Design"
+
+
+@pytest.mark.asyncio
+async def test_skips_duplicates_within_same_source(
+    category_gateway: FakeProjectCategoryGateway,
+):
+    kwork = FakeMarketPlaceClient(
+        categories=[
+            category(
+                "1",
+                "Design",
+                MarketPlace.KWORK,
+                MarketPlaceCategory(
+                    id="10",
+                    title="Logos",
+                    source=MarketPlace.KWORK,
+                ),
+            ),
+            category(
+                "2",
+                "Dev",
+                MarketPlace.KWORK,
+                MarketPlaceCategory(
+                    id="10",
+                    title="Logos",
+                    source=MarketPlace.KWORK,
+                ),
+            ),
+        ],
+    )
+    service = ProjectCategoryService(
+        gateway=category_gateway,
+        marketplace_clients=[kwork],
+        transaction_manager=FakeTransactionManager(),
+    )
+
+    await service.import_categories()
+
+    by_ext = {c.external_id: c for c in category_gateway.upserted}
+    assert set(by_ext) == {"1", "10", "2"}  # subcategory "10" only once

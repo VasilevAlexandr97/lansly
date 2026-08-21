@@ -18,6 +18,7 @@ class ProjectProposalGenerationRequestResult:
 @dataclass
 class MarketPlaceCategory:
     id: str
+    source: str
     title: str
     subcategories: tuple[Self, ...] = ()
 

@@ -2,6 +2,7 @@ from abc import abstractmethod
 from typing import Protocol
 from uuid import UUID
 
+from lansly.projects.consts import MarketPlace
 from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
 from lansly.projects.models import (
     Customer,

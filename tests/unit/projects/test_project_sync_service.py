@@ -10,8 +10,9 @@ from fakes.projects import (
     FakeProjectGateway,
 )
 
+from lansly.projects.consts import MarketPlace
 from lansly.projects.dto import MarketPlaceCustomer, MarketPlaceProject
-from lansly.projects.models import ProjectCategory, ProjectSource
+from lansly.projects.models import ProjectCategory
 from lansly.projects.services import ProjectSyncService
 
 
@@ -60,7 +61,7 @@ def make_category(
     return ProjectCategory(
         id=uuid7(),
         external_id=external_id,
-        source=ProjectSource.KWORK,
+        source=MarketPlace.KWORK,
         title=title,
         parent_id=None,
     )
@@ -115,7 +116,7 @@ async def test_saves_new_projects_with_mapped_categories(
     p1 = inserted["p1"]
     assert isinstance(p1.id, UUID)
     assert p1.category_id == design.id
-    assert p1.source == ProjectSource.KWORK
+    assert p1.source == MarketPlace.KWORK
     assert p1.title == "Логотип"
     assert p1.description == "Срочно"
     assert p1.price == 500

@@ -2,6 +2,7 @@ import logging
 
 from kwork import Kwork
 
+from lansly.projects.consts import MarketPlace
 from lansly.projects.dto import (
     MarketPlaceCategory,
     MarketPlaceCustomer,
@@ -35,6 +36,7 @@ class KworkClient(MarketPlaceClient):
                 continue
             marketplace_category = MarketPlaceCategory(
                 id=str(category.id),
+                source=MarketPlace.KWORK,
                 title=category.name or "",
             )
             subcategories = []
@@ -45,6 +47,7 @@ class KworkClient(MarketPlaceClient):
                 subcategories.append(
                     MarketPlaceCategory(
                         id=str(subcategory.id),
+                        source=MarketPlace.KWORK,
                         title=subcategory.name or "",
                     ),
                 )

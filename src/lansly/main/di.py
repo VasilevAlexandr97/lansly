@@ -52,6 +52,7 @@ from lansly.common.interfaces.password_hasher import PasswordHasher
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.common.password_hasher_bcrypt import PasswordHasherBcrypt
 from lansly.infra.database.transaction_manager import SATransactionManager
+from lansly.infra.flru.client import FlRuClient
 from lansly.infra.kwork.client import KworkClient
 from lansly.infra.polza.client import PolzaClient
 from lansly.infra.polza.limiter import PolzaRateLimiter
@@ -226,6 +227,10 @@ class InfraProvider(Provider):
         )
 
     @provide(scope=Scope.APP)
+    def get_flru_client(self) -> FlRuClient:
+        return FlRuClient()
+
+    @provide(scope=Scope.APP)
     def get_telegram_notifier(self, bot: Bot) -> TelegramNotifier:
         return TelegramNotifier(bot=bot)
 
@@ -364,11 +369,12 @@ class ProjectProvider(Provider):
         gateway: ProjectCategoryGateway,
         transaction_manager: TransactionManager,
         kwork_client: KworkClient,
+        flru_client: FlRuClient,
     ) -> ProjectCategoryService:
         return ProjectCategoryService(
             gateway=gateway,
             transaction_manager=transaction_manager,
-            marketplace_client=kwork_client,
+            marketplace_clients=[kwork_client, flru_client],
         )
 
     @provide(scope=Scope.REQUEST)

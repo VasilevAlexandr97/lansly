@@ -16,10 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lansly.infra.database.base import Base
-
-
-class ProjectSource(StrEnum):
-    KWORK = "kwork"
+from lansly.projects.consts import MarketPlace
 
 
 class ProjectProposalRequestStatus(StrEnum):
@@ -36,8 +33,8 @@ class ProjectCategory(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(
         String(32),
-        default=ProjectSource.KWORK,
-        server_default=ProjectSource.KWORK,
+        default=MarketPlace.KWORK,
+        server_default=MarketPlace.KWORK,
         nullable=False,
     )
     title: Mapped[str]
@@ -74,8 +71,8 @@ class Project(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(
         String(32),
-        default=ProjectSource.KWORK,
-        server_default=ProjectSource.KWORK,
+        default=MarketPlace.KWORK,
+        server_default=MarketPlace.KWORK,
         nullable=False,
     )
     category_id: Mapped[UUID | None] = mapped_column(
@@ -126,7 +123,7 @@ class Customer(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(
         String(32),
-        default=ProjectSource.KWORK,
+        default=MarketPlace.KWORK,
         nullable=False,
     )
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
