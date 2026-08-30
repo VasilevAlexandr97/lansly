@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class MarketPlace(StrEnum):
+class Marketplace(StrEnum):
     KWORK = "kwork"
     FLRU = "flru"
 

@@ -2,18 +2,18 @@ import logging
 
 from kwork import Kwork
 
-from lansly.projects.consts import MarketPlace
+from lansly.projects.consts import Marketplace
 from lansly.projects.dto import (
-    MarketPlaceCategory,
-    MarketPlaceCustomer,
-    MarketPlaceProject,
+    MarketplaceCategory,
+    MarketplaceCustomer,
+    MarketplaceProject,
 )
-from lansly.projects.interfaces import MarketPlaceClient
+from lansly.projects.interfaces import MarketplaceClient
 
 logger = logging.getLogger(__name__)
 
 
-class KworkClient(MarketPlaceClient):
+class KworkClient(MarketplaceClient):
     def __init__(self, login: str, password: str):
         self.login = login
         self.password = password
@@ -24,7 +24,7 @@ class KworkClient(MarketPlaceClient):
             timeout=30,
         )
 
-    async def get_categories(self) -> list[MarketPlaceCategory]:
+    async def get_categories(self) -> list[MarketplaceCategory]:
         async with self.client as api:
             categories = await api.get_categories()
         if not categories:
@@ -34,9 +34,9 @@ class KworkClient(MarketPlaceClient):
             if category.id is None:
                 logger.info(f"Skip kwork category: {category}")
                 continue
-            marketplace_category = MarketPlaceCategory(
+            marketplace_category = MarketplaceCategory(
                 id=str(category.id),
-                source=MarketPlace.KWORK,
+                source=Marketplace.KWORK,
                 title=category.name or "",
             )
             subcategories = []
@@ -45,9 +45,9 @@ class KworkClient(MarketPlaceClient):
                     logger.info(f"Skip kwork subcategory: {subcategory}")
                     continue
                 subcategories.append(
-                    MarketPlaceCategory(
+                    MarketplaceCategory(
                         id=str(subcategory.id),
-                        source=MarketPlace.KWORK,
+                        source=Marketplace.KWORK,
                         title=subcategory.name or "",
                     ),
                 )
@@ -56,14 +56,10 @@ class KworkClient(MarketPlaceClient):
             result.append(marketplace_category)
         return result
 
-    async def get_projects(
-        self,
-        categories_ids: list[int | str],
-        page: int = 1,
-    ) -> list[MarketPlaceProject]:
+    async def get_projects(self, page: int = 1) -> list[MarketplaceProject]:
         async with self.client as api:
             projects = await api.get_projects(
-                categories_ids=categories_ids,
+                categories_ids=["all"],
                 page=page,
             )
         if not projects:
@@ -74,23 +70,25 @@ class KworkClient(MarketPlaceClient):
                 logger.info(f"Skip kwork project without id: {project}")
                 continue
             result.append(
-                MarketPlaceProject(
+                MarketplaceProject(
                     id=str(project.id),
                     category_id=(
                         str(project.category_id)
                         if project.category_id is not None
                         else None
                     ),
+                    source=Marketplace.KWORK,
                     price=project.price if project.price is not None else 0,
                     possible_price_limit=(
                         project.possible_price_limit
                         if project.possible_price_limit is not None
                         else 0
                     ),
+                    has_exact_budget=True,
                     title=project.title or "",
                     description=project.description or "",
                     offers=project.offers if project.offers is not None else 0,
-                    customer=MarketPlaceCustomer(
+                    customer=MarketplaceCustomer(
                         id=str(project.user_id),
                         username=project.username,
                         profile_picture=project.profile_picture,
@@ -102,3 +100,6 @@ class KworkClient(MarketPlaceClient):
                 ),
             )
         return result
+
+    async def get_project(self, project_id: str) -> MarketplaceProject | None:
+        return

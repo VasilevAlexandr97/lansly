@@ -2,8 +2,8 @@ from abc import abstractmethod
 from typing import Protocol
 from uuid import UUID
 
-from lansly.projects.consts import MarketPlace
-from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
+from lansly.projects.consts import Marketplace
+from lansly.projects.dto import MarketplaceCategory, MarketplaceProject
 from lansly.projects.models import (
     Customer,
     Project,
@@ -35,7 +35,7 @@ class ProjectCategoryGateway(Protocol):
 
 class ProjectGateway(Protocol):
     @abstractmethod
-    async def bulk_insert(self, projects: list[Project]) -> None:
+    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
         raise NotImplementedError
 
     @abstractmethod
@@ -66,17 +66,30 @@ class CustomerGateway(Protocol):
         raise NotImplementedError
 
 
-class MarketPlaceClient(Protocol):
+class UserGenerationUsageGateway:
     @abstractmethod
-    async def get_categories(self) -> list[MarketPlaceCategory]:
+    async def get_or_create(self, user_id: UUID) -> UserGenerationUsage:
+        raise NotImplementedError
+
+
+class MarketplaceClient(Protocol):
+    @abstractmethod
+    async def get_categories(self) -> list[MarketplaceCategory]:
         raise NotImplementedError
 
     @abstractmethod
-    async def get_projects(
-        self,
-        categories_ids: list[int | str],
-        page: int = 1,
-    ) -> list[MarketPlaceProject]:
+    async def get_projects(self, page: int = 1) -> list[MarketplaceProject]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_project(self, project_id: str) -> MarketplaceProject | None:
+        raise NotImplementedError
+
+
+class ProjectCollector(Protocol):
+    source: Marketplace
+
+    async def collect(self) -> list[MarketplaceProject]:
         raise NotImplementedError
 
 
@@ -93,10 +106,4 @@ class GenerationLimitChecker(Protocol):
 
     @abstractmethod
     async def get_limit(self, user_id: UUID) -> int:
-        raise NotImplementedError
-
-
-class UserGenerationUsageGateway:
-    @abstractmethod
-    async def get_or_create(self, user_id: UUID) -> UserGenerationUsage:
         raise NotImplementedError

@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Self
 
+from lansly.projects.consts import Marketplace
+
 
 class ProjectProposalGenerationRequestStatus(StrEnum):
     CREATED = "created"
@@ -16,27 +18,29 @@ class ProjectProposalGenerationRequestResult:
 
 
 @dataclass
-class MarketPlaceCategory:
+class MarketplaceCategory:
     id: str
-    source: str
+    source: Marketplace
     title: str
     subcategories: tuple[Self, ...] = ()
 
 
 @dataclass
-class MarketPlaceProject:
+class MarketplaceProject:
     id: str
     category_id: str | None
+    source: Marketplace
     price: int
     possible_price_limit: int
+    has_exact_budget: bool
     title: str
     description: str
     offers: int
-    customer: "MarketPlaceCustomer | None"
+    customer: "MarketplaceCustomer | None"
 
 
 @dataclass
-class MarketPlaceCustomer:
+class MarketplaceCustomer:
     id: str
     username: str | None = None
     profile_picture: str | None = None

@@ -3,24 +3,28 @@ import logging
 import re
 import traceback
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid7
 
 from lansly.auth.interfaces import IdProvider
+from lansly.common.interfaces.lock_manager import DistributedLockManager
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.notifications.interfaces import (
     ProposalGeneratedNotificationQueue,
 )
 from lansly.preferences.exceptions import UserFreelancerProfileNotFoundError
 from lansly.preferences.interfaces import FreelancerProfileGateway
-from lansly.projects.consts import MarketPlace
+from lansly.projects.consts import Marketplace
 from lansly.projects.dto import (
-    MarketPlaceCategory,
+    MarketplaceCategory,
+    MarketplaceProject,
     ProjectProposalGenerationRequestResult,
     ProjectProposalGenerationRequestStatus,
 )
 from lansly.projects.exceptions import (
     GenerationLimitExceededError,
+    MarketplaceIntegrationNotFoundError,
     ProjectNotFoundError,
     ProjectProposalGenerationError,
 )
@@ -30,10 +34,11 @@ from lansly.projects.gateways import (
     UserGenerationUsageGateway,
 )
 from lansly.projects.generators import ProjectProposalGenerator
+from lansly.projects.integrations import MarketplaceIntegration
 from lansly.projects.interfaces import (
     CustomerGateway,
     GenerationLimitChecker,
-    MarketPlaceClient,
+    MarketplaceClient,
     ProjectCategoryGateway,
     ProjectGateway,
     ProposalGenerationQueue,
@@ -56,13 +61,13 @@ class ProjectCategoryService:
         self,
         gateway: ProjectCategoryGateway,
         transaction_manager: TransactionManager,
-        marketplace_clients: list[MarketPlaceClient],
+        marketplace_clients: list[MarketplaceClient],
     ):
         self.gateway = gateway
         self.marketplace_clients = marketplace_clients
         self.transaction_manager = transaction_manager
 
-    async def _get_marketplace_categories(self) -> list[MarketPlaceCategory]:
+    async def _get_marketplace_categories(self) -> list[MarketplaceCategory]:
         categories = []
         for client in self.marketplace_clients:
             result = await client.get_categories()
@@ -72,7 +77,7 @@ class ProjectCategoryService:
     async def _import_for_source(
         self,
         source: str,
-        categories: list[MarketPlaceCategory],
+        categories: list[MarketplaceCategory],
     ) -> None:
         external_ids = [category.id for category in categories] + [
             sub.id
@@ -144,7 +149,7 @@ class ProjectCategoryService:
             f"from {len(self.marketplace_clients)} marketplaces",
         )
 
-        by_source: dict[str, list[MarketPlaceCategory]] = {}
+        by_source: dict[str, list[MarketplaceCategory]] = {}
         for cat in all_categories:
             by_source.setdefault(cat.source, []).append(cat)
 
@@ -163,19 +168,55 @@ class ProjectCategoryService:
 class ProjectSyncService:
     def __init__(
         self,
+        integrations: Sequence[MarketplaceIntegration],
         category_gateway: ProjectCategoryGateway,
         project_gateway: ProjectGateway,
         customer_gateway: CustomerGateway,
         transaction_manager: TransactionManager,
-        marketplace_client: MarketPlaceClient,
+        lock_manager: DistributedLockManager,
     ):
+        self.integrations = {i.source: i for i in integrations}
         self.category_gateway = category_gateway
         self.project_gateway = project_gateway
         self.customer_gateway = customer_gateway
         self.transaction_manager = transaction_manager
-        self.marketplace_client = marketplace_client
+        self.lock_manager = lock_manager
 
-    def _clean_project_description(self, text: str) -> str:
+    async def sync(self, source: Marketplace) -> list[UUID]:
+        integration = self.integrations.get(source)
+        if integration is None:
+            raise MarketplaceIntegrationNotFoundError(source)
+        if integration.lock is None:
+            return await self._sync_integration(integration)
+
+        options = integration.lock
+
+        async with self.lock_manager.try_lock(
+            key=options.key,
+            timeout=options.timeout,
+            blocking=options.blocking,
+            blocking_timeout=options.blocking_timeout,
+        ) as acquired:
+            if not acquired:
+                logger.info(
+                    f"Project sync is already running: source={source}",
+                )
+                return []
+
+            return await self._sync_integration(integration)
+
+    async def _sync_integration(
+        self,
+        integration: MarketplaceIntegration,
+    ) -> list[UUID]:
+        collector = integration.collector
+        projects = await collector.collect()
+        return await self._save_projects(
+            projects=projects,
+            source=integration.source,
+        )
+
+    def _normalize_description(self, text: str) -> str:
         # 1. Декодируем HTML entities
         text = html.unescape(text)
 
@@ -193,19 +234,72 @@ class ProjectSyncService:
 
         return text.strip()
 
-    async def get_and_save_new_projects(self):
-        projects = await self.marketplace_client.get_projects(
-            categories_ids=["all"],
+    async def _save_customers(
+        self,
+        source: Marketplace,
+        projects: list[MarketplaceProject],
+    ) -> dict[str, UUID]:
+        now = datetime.now(UTC)
+        customers = {}
+        for project in projects:
+            customer = project.customer
+            if customer is None:
+                continue
+            customers.setdefault(
+                customer.id,
+                Customer(
+                    id=uuid7(),
+                    external_id=customer.id,
+                    source=source,
+                    username=customer.username,
+                    profile_picture=customer.profile_picture,
+                    user_projects_count=customer.user_projects_count,
+                    user_hired_percent=customer.user_hired_percent,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            )
+        if not customers:
+            return {}
+
+        saved = await self.customer_gateway.bulk_upsert(
+            list(customers.values()),
         )
+        return {customer.external_id: customer.id for customer in saved}
+
+    def _deduplicate_projects(
+        self,
+        projects: list[MarketplaceProject],
+    ) -> list[MarketplaceProject]:
+        result = {}
+        for project in projects:
+            result.setdefault(
+                project.id,
+                project,
+            )
+        return list(result.values())
+
+    async def _save_projects(
+        self,
+        projects: list[MarketplaceProject],
+        source: Marketplace,
+    ):
         if not projects:
             return []
 
+        invalid_sources = [p.source for p in projects if p.source != source]
+        if invalid_sources:
+            raise ValueError(
+                f"Project source mismatch: expected={source}, "
+                f"actual={sorted(invalid_sources)}",
+            )
+        projects = self._deduplicate_projects(projects)
         # 1. Фильтруем только новые проекты
-        external_ids = [project.id for project in projects]
+        project_ids = [project.id for project in projects]
         missing_project_ids = (
             await self.project_gateway.get_missing_external_ids(
-                external_ids=external_ids,
-                source=ProjectSource.KWORK,
+                external_ids=project_ids,
+                source=source,
             )
         )
         if not missing_project_ids:
@@ -213,77 +307,54 @@ class ProjectSyncService:
         new_projects = [p for p in projects if p.id in missing_project_ids]
 
         # 2. Категории только из новых проектов
-        cats_external_ids = [
-            p.category_id for p in new_projects if p.category_id
+        category_ids = [
+            p.category_id for p in new_projects if p.category_id is not None
         ]
         categories = (
             await self.category_gateway.get_categories_by_external_ids(
-                cats_external_ids,
-                source=ProjectSource.KWORK,
+                category_ids,
+                source=source,
             )
         )
-        categories_map: dict[str, UUID] = {
+        category_map: dict[str, UUID] = {
             c.external_id: c.id for c in categories
         }
 
-        missing_categories = set(cats_external_ids) - set(categories_map)
+        missing_categories = set(category_ids) - set(category_map)
         if missing_categories:
             logger.warning(
-                "Kwork projects reference categories missing in DB: %s",
+                "Projects reference categories missing in DB: %s",
                 ", ".join(sorted(missing_categories)),
             )
 
-        now = datetime.now(UTC)
-        unique_customers: dict[str, Customer] = {}
-        for p in new_projects:
-            if p.customer and p.customer.id not in unique_customers:
-                unique_customers[p.customer.id] = Customer(
-                    id=uuid7(),
-                    external_id=p.customer.id,
-                    source=ProjectSource.KWORK,
-                    username=p.customer.username,
-                    profile_picture=p.customer.profile_picture,
-                    user_projects_count=p.customer.user_projects_count,
-                    user_hired_percent=p.customer.user_hired_percent,
-                    created_at=now,
-                    updated_at=now,
-                )
-
-        upserted = []
-        if unique_customers:
-            upserted = await self.customer_gateway.bulk_upsert(
-                list(unique_customers.values()),
+        customer_map = await self._save_customers(source, new_projects)
+        domain_projects = [
+            Project(
+                id=uuid7(),
+                external_id=p.id,
+                source=source,
+                category_id=category_map.get(p.category_id),
+                customer_id=(
+                    customer_map.get(p.customer.id)
+                    if p.customer is not None
+                    else None
+                ),
+                price=p.price,
+                possible_price_limit=p.possible_price_limit,
+                has_exact_budget=p.has_exact_budget,
+                title=p.title,
+                description=self._normalize_description(
+                    p.description,
+                ),
+                offers=p.offers,
+                created_at=datetime.now(UTC),
             )
-        customer_map = {c.external_id: c.id for c in upserted}
-
-        projects_to_add: dict[str, Project] = {}
-        for p in new_projects:
-            key = f"{p.id}:{ProjectSource.KWORK}"
-            if key not in projects_to_add:
-                customer_id = (
-                    customer_map.get(p.customer.id) if p.customer else None
-                )
-                projects_to_add[key] = Project(
-                    id=uuid7(),
-                    external_id=p.id,
-                    source=ProjectSource.KWORK,
-                    category_id=categories_map.get(p.category_id),
-                    customer_id=customer_id,
-                    price=p.price,
-                    possible_price_limit=p.possible_price_limit,
-                    title=p.title,
-                    description=self._clean_project_description(
-                        p.description,
-                    ),
-                    offers=p.offers,
-                    created_at=now,
-                )
-        if projects_to_add:
-            await self.project_gateway.bulk_insert(
-                list(projects_to_add.values()),
-            )
+            for p in new_projects
+        ]
+        inserted_ids = await self.project_gateway.bulk_insert(domain_projects)
+        if inserted_ids:
             await self.transaction_manager.commit()
-        return [project.id for project in projects_to_add.values()]
+        return inserted_ids
 
 
 class ProjectProposalRequestService:

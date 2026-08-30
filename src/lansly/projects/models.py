@@ -11,12 +11,13 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     func,
+    sql,
     text as sa_text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lansly.infra.database.base import Base
-from lansly.projects.consts import MarketPlace
+from lansly.projects.consts import Marketplace
 
 
 class ProjectProposalRequestStatus(StrEnum):
@@ -33,8 +34,8 @@ class ProjectCategory(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(
         String(32),
-        default=MarketPlace.KWORK,
-        server_default=MarketPlace.KWORK,
+        default=Marketplace.KWORK,
+        server_default=Marketplace.KWORK,
         nullable=False,
     )
     title: Mapped[str]
@@ -71,8 +72,8 @@ class Project(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(
         String(32),
-        default=MarketPlace.KWORK,
-        server_default=MarketPlace.KWORK,
+        default=Marketplace.KWORK,
+        server_default=Marketplace.KWORK,
         nullable=False,
     )
     category_id: Mapped[UUID | None] = mapped_column(
@@ -85,6 +86,10 @@ class Project(Base):
     )
     price: Mapped[int]
     possible_price_limit: Mapped[int]
+    has_exact_budget: Mapped[bool] = mapped_column(
+        default=True,
+        server_default=sql.true(),
+    )
     title: Mapped[str]
     description: Mapped[str]
     offers: Mapped[int]
@@ -123,7 +128,7 @@ class Customer(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     source: Mapped[str] = mapped_column(
         String(32),
-        default=MarketPlace.KWORK,
+        default=Marketplace.KWORK,
         nullable=False,
     )
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)

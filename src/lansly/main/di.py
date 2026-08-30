@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterable
-from typing import Any
+from typing import Any, Sequence
 
 from aiogram import Bot
 from aiogram.types import TelegramObject
@@ -7,6 +7,7 @@ from dishka import (
     AsyncContainer,
     Provider,
     Scope,
+    collect,
     make_async_container,
     provide,
 )
@@ -48,6 +49,7 @@ from lansly.auth.session_transport import FastAPISessionTransport
 from lansly.auth.telegram_auth import TelegramAuth
 from lansly.common.dto import CurrentUser
 from lansly.common.interfaces.llm_client import LLMClient
+from lansly.common.interfaces.lock_manager import DistributedLockManager
 from lansly.common.interfaces.password_hasher import PasswordHasher
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.common.password_hasher_bcrypt import PasswordHasherBcrypt
@@ -56,6 +58,7 @@ from lansly.infra.flru.client import FlRuClient
 from lansly.infra.kwork.client import KworkClient
 from lansly.infra.polza.client import PolzaClient
 from lansly.infra.polza.limiter import PolzaRateLimiter
+from lansly.infra.redis.lock_manager import RedisDistributedLockManager
 from lansly.infra.taskiq.queue import (
     TaskiqProposalGeneratedNotificationQueue,
     TaskiqProposalGenerationQueue,
@@ -98,6 +101,10 @@ from lansly.preferences.services import (
     UserPriceFilterService,
     UserStopWordsService,
 )
+from lansly.projects.collectors import (
+    FlRuProjectCollector,
+    KworkProjectCollector,
+)
 from lansly.projects.gateways import (
     ProjectProposalGateway,
     ProjectProposalRequestGateway,
@@ -108,6 +115,7 @@ from lansly.projects.gateways import (
     UserGenerationUsageGateway,
 )
 from lansly.projects.generators import ProjectProposalGenerator
+from lansly.projects.integrations import LockOptions, MarketplaceIntegration
 from lansly.projects.interfaces import (
     CustomerGateway,
     GenerationLimitChecker,
@@ -218,6 +226,10 @@ class InfraProvider(Provider):
         client = Redis(connection_pool=pool)
         yield client
         await client.aclose(close_connection_pool=True)
+
+    @provide(scope=Scope.APP, provides=DistributedLockManager)
+    async def lock_manager(self, client: Redis) -> RedisDistributedLockManager:
+        return RedisDistributedLockManager(client)
 
     @provide(scope=Scope.APP)
     def get_kwork_client(self, config: Config) -> KworkClient:
@@ -378,20 +390,64 @@ class ProjectProvider(Provider):
         )
 
     @provide(scope=Scope.REQUEST)
+    def get_kwork_project_collector(
+        self,
+        client: KworkClient,
+    ) -> KworkProjectCollector:
+        return KworkProjectCollector(client)
+
+    @provide(scope=Scope.REQUEST)
+    def get_flru_project_collector(
+        self,
+        client: FlRuClient,
+        project_gateway: ProjectGateway,
+    ) -> FlRuProjectCollector:
+        return FlRuProjectCollector(client, project_gateway)
+
+    @provide(scope=Scope.REQUEST)
+    def get_kwork_integration(
+        self,
+        collector: KworkProjectCollector,
+    ) -> MarketplaceIntegration:
+        return MarketplaceIntegration(collector=collector)
+
+    @provide(scope=Scope.REQUEST)
+    def get_flru_integration(
+        self,
+        collector: FlRuProjectCollector,
+    ) -> MarketplaceIntegration:
+        return MarketplaceIntegration(
+            collector=collector,
+            lock=LockOptions(
+                key="project:sync:flru",
+                timeout=900,
+                blocking=False,
+            ),
+        )
+
+    integrations = collect(
+        MarketplaceIntegration,
+        scope=Scope.REQUEST,
+        provides=Sequence[MarketplaceIntegration],
+    )
+
+    @provide(scope=Scope.REQUEST)
     def get_project_sync_service(
         self,
+        integrations: Sequence[MarketplaceIntegration],
         category_gateway: ProjectCategoryGateway,
         project_gateway: ProjectGateway,
         customer_gateway: CustomerGateway,
         transaction_manager: TransactionManager,
-        kwork_client: KworkClient,
+        lock_manager: DistributedLockManager,
     ) -> ProjectSyncService:
         return ProjectSyncService(
+            integrations=integrations,
             category_gateway=category_gateway,
             project_gateway=project_gateway,
             customer_gateway=customer_gateway,
             transaction_manager=transaction_manager,
-            marketplace_client=kwork_client,
+            lock_manager=lock_manager,
         )
 
     project_proposal_request_service = provide(

@@ -5,8 +5,8 @@ import pytest
 from fakes.infra import FakeTransactionManager
 from fakes.projects import FakeMarketPlaceClient, FakeProjectCategoryGateway
 
-from lansly.projects.consts import MarketPlace
-from lansly.projects.dto import MarketPlaceCategory
+from lansly.projects.consts import Marketplace
+from lansly.projects.dto import MarketplaceCategory
 from lansly.projects.models import ProjectCategory
 from lansly.projects.services import ProjectCategoryService
 
@@ -27,10 +27,10 @@ def category_service(
 def category(
     external_id: str,
     title: str,
-    source: str = MarketPlace.KWORK,
-    *subs: MarketPlaceCategory,
-) -> MarketPlaceCategory:
-    return MarketPlaceCategory(
+    source: str = Marketplace.KWORK,
+    *subs: MarketplaceCategory,
+) -> MarketplaceCategory:
+    return MarketplaceCategory(
         id=external_id,
         source=source,
         title=title,
@@ -49,15 +49,15 @@ async def test_import_creates_new_categories_and_subcategories(
         category(
             "1",
             "Дизайн",
-            MarketPlace.KWORK,
-            MarketPlaceCategory(
+            Marketplace.KWORK,
+            MarketplaceCategory(
                 id="10",
-                source=MarketPlace.KWORK,
+                source=Marketplace.KWORK,
                 title="Логотипы",
             ),
-            MarketPlaceCategory(
+            MarketplaceCategory(
                 id="11",
-                source=MarketPlace.KWORK,
+                source=Marketplace.KWORK,
                 title="Баннеры",
             ),
         ),
@@ -74,7 +74,7 @@ async def test_import_creates_new_categories_and_subcategories(
     design = by_external["1"]
     assert isinstance(design.id, UUID)
     assert design.parent_id is None
-    assert design.source == MarketPlace.KWORK
+    assert design.source == Marketplace.KWORK
     assert design.title == "Дизайн"
 
     assert by_external["10"].parent_id == design.id
@@ -93,7 +93,7 @@ async def test_import_reuses_existing_ids(
         ProjectCategory(
             id=existing_id,
             external_id="1",
-            source=MarketPlace.KWORK,
+            source=Marketplace.KWORK,
             title="Старый заголовок",
             parent_id=None,
         ),
@@ -102,10 +102,10 @@ async def test_import_reuses_existing_ids(
         category(
             "1",
             "Дизайн",
-            MarketPlace.KWORK,
-            MarketPlaceCategory(
+            Marketplace.KWORK,
+            MarketplaceCategory(
                 id="10",
-                source=MarketPlace.KWORK,
+                source=Marketplace.KWORK,
                 title="Логотипы",
             ),
         ),
@@ -124,15 +124,15 @@ async def test_import_skips_categories_without_title(
     marketplace_client: FakeMarketPlaceClient,
 ):
     marketplace_client.categories = [
-        MarketPlaceCategory(id="1", source=MarketPlace.KWORK, title=""),
-        MarketPlaceCategory(
+        MarketplaceCategory(id="1", source=Marketplace.KWORK, title=""),
+        MarketplaceCategory(
             id="2",
-            source=MarketPlace.KWORK,
+            source=Marketplace.KWORK,
             title="Разработка",
             subcategories=(
-                MarketPlaceCategory(
+                MarketplaceCategory(
                     id="20",
-                    source=MarketPlace.KWORK,
+                    source=Marketplace.KWORK,
                     title="",
                 ),
             ),
@@ -185,20 +185,20 @@ async def test_import_skips_duplicate_category_ids(
         category(
             "1",
             "Дизайн",
-            MarketPlace.KWORK,
-            MarketPlaceCategory(
+            Marketplace.KWORK,
+            MarketplaceCategory(
                 id="10",
-                source=MarketPlace.KWORK,
+                source=Marketplace.KWORK,
                 title="Логотипы",
             ),
         ),
         category(
             "2",
             "Разработка",
-            MarketPlace.KWORK,
-            MarketPlaceCategory(
+            Marketplace.KWORK,
+            MarketplaceCategory(
                 id="10",
-                source=MarketPlace.KWORK,
+                source=Marketplace.KWORK,
                 title="Логотипы",
             ),
         ),
@@ -215,12 +215,12 @@ async def test_import_categories_from_multiple_sources(
 ):
     kwork = FakeMarketPlaceClient(
         categories=[
-            category("k1", "Kwork Cat", source=MarketPlace.KWORK),
+            category("k1", "Kwork Cat", source=Marketplace.KWORK),
         ]
     )
     flru = FakeMarketPlaceClient(
         categories=[
-            category("f1", "FlRu Cat", source=MarketPlace.FLRU),
+            category("f1", "FlRu Cat", source=Marketplace.FLRU),
         ]
     )
     service = ProjectCategoryService(
@@ -233,8 +233,8 @@ async def test_import_categories_from_multiple_sources(
 
     assert category_gateway.upsert_calls == 2  # once per source
     by_ext = {c.external_id: c for c in category_gateway.upserted}
-    assert by_ext["k1"].source == MarketPlace.KWORK
-    assert by_ext["f1"].source == MarketPlace.FLRU
+    assert by_ext["k1"].source == Marketplace.KWORK
+    assert by_ext["f1"].source == Marketplace.FLRU
     assert txn.commits == 1
 
 
@@ -244,12 +244,12 @@ async def test_same_external_id_different_sources_no_collision(
 ):
     kwork = FakeMarketPlaceClient(
         categories=[
-            category("1", "Kwork Design", source=MarketPlace.KWORK),
+            category("1", "Kwork Design", source=Marketplace.KWORK),
         ]
     )
     flru = FakeMarketPlaceClient(
         categories=[
-            category("1", "FlRu Design", source=MarketPlace.FLRU),
+            category("1", "FlRu Design", source=Marketplace.FLRU),
         ]
     )
     service = ProjectCategoryService(
@@ -263,7 +263,7 @@ async def test_same_external_id_different_sources_no_collision(
     by_ext = {c.external_id: c for c in category_gateway.upserted}
     assert len(by_ext) == 1  # same key
     # Последний upsert побеждает (flru)
-    assert by_ext["1"].source == MarketPlace.FLRU
+    assert by_ext["1"].source == Marketplace.FLRU
     assert by_ext["1"].title == "FlRu Design"
 
 
@@ -276,21 +276,21 @@ async def test_skips_duplicates_within_same_source(
             category(
                 "1",
                 "Design",
-                MarketPlace.KWORK,
-                MarketPlaceCategory(
+                Marketplace.KWORK,
+                MarketplaceCategory(
                     id="10",
                     title="Logos",
-                    source=MarketPlace.KWORK,
+                    source=Marketplace.KWORK,
                 ),
             ),
             category(
                 "2",
                 "Dev",
-                MarketPlace.KWORK,
-                MarketPlaceCategory(
+                Marketplace.KWORK,
+                MarketplaceCategory(
                     id="10",
                     title="Logos",
-                    source=MarketPlace.KWORK,
+                    source=Marketplace.KWORK,
                 ),
             ),
         ],

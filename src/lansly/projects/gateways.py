@@ -76,9 +76,9 @@ class SAProjectGateway(ProjectGateway):
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def bulk_insert(self, projects: list[Project]) -> None:
+    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
         if not projects:
-            return
+            return []
         values = [
             {
                 "id": project.id,
@@ -89,6 +89,7 @@ class SAProjectGateway(ProjectGateway):
                 "customer_id": project.customer_id,
                 "price": project.price,
                 "possible_price_limit": project.possible_price_limit,
+                "has_exact_budget": project.has_exact_budget,
                 "description": project.description,
                 "offers": project.offers,
                 "created_at": project.created_at,
@@ -101,8 +102,9 @@ class SAProjectGateway(ProjectGateway):
             .on_conflict_do_nothing(
                 index_elements=["external_id", "source"],
             )
+            .returning(Project.id)
         )
-        await self.session.execute(stmt)
+        return list(await self.session.scalars(stmt))
 
     async def get_missing_external_ids(
         self,

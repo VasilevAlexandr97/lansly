@@ -1,5 +1,8 @@
-from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
-from lansly.projects.models import Project, ProjectCategory, Customer
+from uuid import UUID
+
+from lansly.projects.consts import Marketplace
+from lansly.projects.dto import MarketplaceCategory, MarketplaceProject
+from lansly.projects.models import Customer, Project, ProjectCategory
 
 
 class FakeProjectCategoryGateway:
@@ -37,9 +40,10 @@ class FakeProjectGateway:
         self.bulk_inserted: list[Project] = []
         self.bulk_insert_calls = 0
 
-    async def bulk_insert(self, projects: list[Project]) -> None:
+    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
         self.bulk_insert_calls += 1
         self.bulk_inserted.extend(projects)
+        return [project.id for project in projects]
 
     async def get_missing_external_ids(
         self,
@@ -63,15 +67,15 @@ class FakeCustomerGateway:
 class FakeMarketPlaceClient:
     def __init__(
         self,
-        categories: list[MarketPlaceCategory] | None = None,
-        projects: list[MarketPlaceProject] | None = None,
+        categories: list[MarketplaceCategory] | None = None,
+        projects: list[MarketplaceProject] | None = None,
     ):
         self.categories = categories or []
         self.projects = projects or []
         self.get_categories_calls = 0
         self.get_projects_calls: list[dict] = []
 
-    async def get_categories(self) -> list[MarketPlaceCategory]:
+    async def get_categories(self) -> list[MarketplaceCategory]:
         self.get_categories_calls += 1
         return self.categories
 
@@ -79,8 +83,23 @@ class FakeMarketPlaceClient:
         self,
         categories_ids: list[int | str],
         page: int = 1,
-    ) -> list[MarketPlaceProject]:
+    ) -> list[MarketplaceProject]:
         self.get_projects_calls.append(
             {"categories_ids": categories_ids, "page": page},
         )
+        return self.projects
+
+
+class FakeProjectCollector:
+    def __init__(
+        self,
+        source: Marketplace | None = None,
+        projects: list[MarketplaceProject] | None = None,
+    ):
+        self.source = source or Marketplace.KWORK
+        self.projects = projects or []
+        self.collect_calls = 0
+
+    async def collect(self) -> list[MarketplaceProject]:
+        self.collect_calls += 1
         return self.projects
