@@ -1,5 +1,5 @@
-from collections.abc import AsyncIterable
-from typing import Any, Sequence
+from collections.abc import AsyncIterable, Sequence
+from typing import Any
 
 from aiogram import Bot
 from aiogram.types import TelegramObject
@@ -7,6 +7,7 @@ from dishka import (
     AsyncContainer,
     Provider,
     Scope,
+    alias,
     collect,
     make_async_container,
     provide,
@@ -119,6 +120,7 @@ from lansly.projects.integrations import LockOptions, MarketplaceIntegration
 from lansly.projects.interfaces import (
     CustomerGateway,
     GenerationLimitChecker,
+    MarketplaceClient,
     ProjectCategoryGateway,
     ProjectGateway,
     ProposalGenerationQueue,
@@ -375,18 +377,33 @@ class ProjectProvider(Provider):
     ) -> ProjectProposalGenerator:
         return ProjectProposalGenerator(client)
 
+    kwork_client_port = alias(
+        source=KworkClient,
+        provides=MarketplaceClient,
+    )
+
+    flru_client_port = alias(
+        source=FlRuClient,
+        provides=MarketplaceClient,
+    )
+
+    marketplace_clients = collect(
+        MarketplaceClient,
+        scope=Scope.APP,
+        provides=Sequence[MarketplaceClient],
+    )
+
     @provide(scope=Scope.REQUEST)
     def get_project_category_service(
         self,
+        clients: Sequence[MarketplaceClient],
         gateway: ProjectCategoryGateway,
         transaction_manager: TransactionManager,
-        kwork_client: KworkClient,
-        flru_client: FlRuClient,
     ) -> ProjectCategoryService:
         return ProjectCategoryService(
+            clients=clients,
             gateway=gateway,
             transaction_manager=transaction_manager,
-            marketplace_clients=[kwork_client, flru_client],
         )
 
     @provide(scope=Scope.REQUEST)

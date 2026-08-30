@@ -59,17 +59,42 @@ logger = logging.getLogger(__name__)
 class ProjectCategoryService:
     def __init__(
         self,
+        clients: Sequence[MarketplaceClient],
         gateway: ProjectCategoryGateway,
         transaction_manager: TransactionManager,
-        marketplace_clients: list[MarketplaceClient],
     ):
+        self.clients = clients
         self.gateway = gateway
-        self.marketplace_clients = marketplace_clients
         self.transaction_manager = transaction_manager
 
+    async def import_categories(self) -> None:
+        all_categories = await self._get_marketplace_categories()
+        if not all_categories:
+            return
+
+        total = sum(1 + len(c.subcategories or []) for c in all_categories)
+        logger.info(
+            f"Fetched {total} categories "
+            f"from {len(self.clients)} marketplaces",
+        )
+
+        by_source: dict[str, list[MarketplaceCategory]] = {}
+        for cat in all_categories:
+            by_source.setdefault(cat.source, []).append(cat)
+
+        for source, cats in by_source.items():
+            await self._import_for_source(source, cats)
+
+        await self.transaction_manager.commit()
+
+    async def get_root_categories(
+        self,
+        source: str | None = None,
+    ) -> list[ProjectCategory]:
+        return await self.gateway.get_root_categories(source)
     async def _get_marketplace_categories(self) -> list[MarketplaceCategory]:
         categories = []
-        for client in self.marketplace_clients:
+        for client in self.clients:
             result = await client.get_categories()
             categories.extend(result)
         return categories
@@ -138,31 +163,6 @@ class ProjectCategoryService:
             f"empty titles={skipped_empty_title})",
         )
 
-    async def import_categories(self) -> None:
-        all_categories = await self._get_marketplace_categories()
-        if not all_categories:
-            return
-
-        total = sum(1 + len(c.subcategories or []) for c in all_categories)
-        logger.info(
-            f"Fetched {total} categories "
-            f"from {len(self.marketplace_clients)} marketplaces",
-        )
-
-        by_source: dict[str, list[MarketplaceCategory]] = {}
-        for cat in all_categories:
-            by_source.setdefault(cat.source, []).append(cat)
-
-        for source, cats in by_source.items():
-            await self._import_for_source(source, cats)
-
-        await self.transaction_manager.commit()
-
-    async def get_root_categories(
-        self,
-        source: str | None = None,
-    ) -> list[ProjectCategory]:
-        return await self.gateway.get_root_categories(source)
 
 
 class ProjectSyncService:
