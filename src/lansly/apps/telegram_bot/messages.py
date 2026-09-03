@@ -1,3 +1,4 @@
+import html
 import re
 
 from datetime import datetime
@@ -10,7 +11,12 @@ from lansly.preferences.consts import (
     MAX_PRO_STOP_WORDS,
 )
 from lansly.preferences.models import UserPriceFilter
-from lansly.projects.consts import MAX_FREE_GENERATIONS, MAX_PRO_GENERATIONS
+from lansly.projects.consts import (
+    MARKETPLACE_LABELS,
+    MAX_FREE_GENERATIONS,
+    MAX_PRO_GENERATIONS,
+    Marketplace,
+)
 from lansly.projects.models import Project, ProjectCategory
 from lansly.subscriptions.dto import SubscriptionInfoDTO
 from lansly.subscriptions.models import PlanSlug
@@ -58,15 +64,47 @@ def project_message(project: Project, ref_id: int | None = None) -> str:
     )
 
 
-def start_message() -> str:
+def onboarding_start_message() -> str:
     return (
-        "👋 Добро пожаловать в <b>Lansly</b>\n\n"
-        "Мониторю проекты на бирже Kwork и присылаю новые мгновенно.\n\n"
-        "⚡ Что я делаю:\n"
-        "• Мониторинг новых проектов\n"
-        "• Мгновенные уведомления\n"
-        "• Генерация автоматических откликов\n\n"
-        "📂 Настрой категории — и я начну мониторинг"
+        "👋 Привет! Я <b>Lansly</b> — инструмент, который помогает фрилансерам"
+        " находить больше заказов и быстрее на них откликаться.\n\n"
+        "🔔 Отслеживаю новые проекты на фриланс-биржах "
+        "и сразу присылаю подходящие в Telegram.\n"
+        "✨ Помогаю подготовить персональный отклик с помощью ИИ.\n\n"
+        "Чтобы запустить мониторинг, выберите биржу, "
+        "а затем нужную категорию.\n\n"
+        "<b>Где будем искать заказы?</b>"
+    )
+
+
+def onboarding_select_direction_message(marketplace: Marketplace) -> str:
+    return (
+        f"<b>{MARKETPLACE_LABELS[marketplace]} · Шаг 1 из 2</b>\n\n"
+        "Выберите направление, в котором ищете заказы."
+    )
+
+
+def onboarding_select_category_message(
+    marketplace: Marketplace,
+    direction: str,
+) -> str:
+    return (
+        f"<b>{MARKETPLACE_LABELS[marketplace]} › "
+        f"{html.escape(direction)} · Шаг 2 из 2</b>\n\n"
+        "Выберите категорию — по ней будут приходить новые заказы.\n\n"
+        "На бесплатном тарифе доступна 1 категория."
+    )
+
+
+def onboarding_complete_message(
+    marketplace: Marketplace,
+    category: str,
+) -> str:
+    return (
+        "✅ Мониторинг запущен\n\n"
+        f"Буду присылать новые проекты с {MARKETPLACE_LABELS[marketplace]} "
+        f"в категории «{html.escape(category)}».\n\n"
+        "🏠 Главное меню Lansly"
     )
 
 
@@ -86,8 +124,47 @@ def menu_message(follow_categories: list[ProjectCategory]) -> str:
     )
 
 
-def select_followed_categories_message() -> str:
-    return "📂 Выберите категории для мониторинга"
+def category_settings_select_marketplace_message() -> str:
+    return (
+        "📂 <b>Источники и категории</b>\n\n"
+        "Выберите биржу, чтобы настроить категории для мониторинга."
+    )
+
+
+def category_settings_select_direction_message(
+    marketplace: Marketplace,
+) -> str:
+    return f"<b>{MARKETPLACE_LABELS[marketplace]}</b>\n\nВыберите направление:"
+
+
+def category_settings_select_category_message(
+    marketplace: Marketplace,
+    direction: str,
+) -> str:
+    return (
+        f"<b>{MARKETPLACE_LABELS[marketplace]} "
+        f"› {html.escape(direction)}</b>\n\n"
+        "Выберите категории для мониторинга. "
+        "Изменения сохраняются автоматически."
+    )
+
+
+def category_settings_disable_confirmation_message() -> str:
+    return (
+        "⚠️ <b>Отключить мониторинг?</b>\n\n"
+        "Все выбранные категории будут отключены. "
+        "Уведомления о новых заказах больше не будут приходить.\n\n"
+        "Вы сможете снова настроить мониторинг в любое время."
+    )
+
+
+def category_settings_disabled_message() -> str:
+    return (
+        "🔕 <b>Мониторинг отключён</b>\n\n"
+        "Все категории отключены. "
+        "Уведомления о новых заказах больше не будут приходить.\n\n"
+        "Чтобы возобновить мониторинг, выберите источник и категорию."
+    )
 
 
 def categories_limit_exceeded_message(limit: int) -> str:
@@ -97,12 +174,8 @@ def categories_limit_exceeded_message(limit: int) -> str:
     )
 
 
-def unfollow_all_categories_message() -> str:
-    return (
-        "🗑️ Отписка от всех категорий выполнена.\n\n"
-        "Уведомления о новых проектах приходить не будут.\n"
-        "Чтобы возобновить мониторинг — выберите категории в меню."
-    )
+def category_selection_expired_message() -> str:
+    return "⌛ Сессия настройки устарела. Начните настройку заново."
 
 
 def profile_not_set_message() -> str:

@@ -12,9 +12,13 @@ from fakes.telegram_bot import BotClient
 
 from lansly.apps.telegram_bot.keyboards import (
     build_main_menu_kbd,
-    build_start_kbd,
+    build_onboarding_marketplaces_kbd,
 )
-from lansly.apps.telegram_bot.messages import menu_message, start_message
+from lansly.apps.telegram_bot.messages import (
+    menu_message,
+    onboarding_start_message,
+)
+from lansly.apps.telegram_bot.states import OnboardingState
 from lansly.auth.telegram_auth import TelegramAuthResultDTO
 from lansly.projects.models import ProjectCategory
 
@@ -29,8 +33,8 @@ async def test_start_handler_new_user(
     await bot_client.send_message(text="/start")
     sent = bot_client.bot.sent_methods[0]
     assert isinstance(sent, SendMessage)
-    assert sent.text == start_message()
-    assert sent.reply_markup == build_start_kbd()
+    assert sent.text == onboarding_start_message()
+    assert sent.reply_markup == build_onboarding_marketplaces_kbd()
     assert fake_follow_service.get_followed_categories_calls == 0
 
 
@@ -65,7 +69,7 @@ async def test_start_handler_existing_user(
 
 
 @pytest.mark.asyncio
-async def test_start_handler_clears_fsm(
+async def test_start_handler_resets_fsm_before_onboarding(
     bot_client: BotClient,
     memory_storage: MemoryStorage,
 ):
@@ -79,7 +83,10 @@ async def test_start_handler_clears_fsm(
 
     await bot_client.send_message(text="/start")
 
-    assert await memory_storage.get_state(key) is None
+    assert (
+        await memory_storage.get_state(key)
+        == OnboardingState.select_marketplace.state
+    )
     assert await memory_storage.get_data(key) == {}
 
 
@@ -180,8 +187,8 @@ async def test_router_routes_start_in_private_chat(bot_client: BotClient):
     await bot_client.send_message(text="/start", chat_type=ChatType.PRIVATE)
     sent = bot_client.bot.sent_methods[0]
     assert isinstance(sent, SendMessage)
-    assert sent.text == start_message()
-    assert sent.reply_markup == build_start_kbd()
+    assert sent.text == onboarding_start_message()
+    assert sent.reply_markup == build_onboarding_marketplaces_kbd()
 
 
 @pytest.mark.asyncio

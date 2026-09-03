@@ -92,6 +92,13 @@ class ProjectCategoryService:
         source: str | None = None,
     ) -> list[ProjectCategory]:
         return await self.gateway.get_root_categories(source)
+
+    async def get_subcategories(
+        self,
+        parent_id: UUID,
+    ) -> list[ProjectCategory]:
+        return await self.gateway.get_subcategories(parent_id)
+
     async def _get_marketplace_categories(self) -> list[MarketplaceCategory]:
         categories = []
         for client in self.clients:
@@ -162,7 +169,6 @@ class ProjectCategoryService:
             f"(skipped duplicates={skipped_duplicates}, "
             f"empty titles={skipped_empty_title})",
         )
-
 
 
 class ProjectSyncService:

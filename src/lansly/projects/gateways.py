@@ -68,8 +68,21 @@ class SAProjectCategoryGateway(ProjectCategoryGateway):
         )
         if source is not None:
             stmt = stmt.where(ProjectCategory.source == source)
-        result = await self.session.scalars(stmt)
-        return list(result.all())
+        stmt = stmt.order_by(ProjectCategory.title)
+        return list(await self.session.scalars(stmt))
+
+    async def get_subcategories(
+        self,
+        parent_id: UUID,
+    ) -> list[ProjectCategory]:
+        stmt = (
+            select(ProjectCategory)
+            .where(
+                ProjectCategory.parent_id == parent_id,
+            )
+            .order_by(ProjectCategory.title)
+        )
+        return list(await self.session.scalars(stmt))
 
 
 class SAProjectGateway(ProjectGateway):

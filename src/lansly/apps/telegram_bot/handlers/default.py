@@ -11,13 +11,14 @@ from lansly.apps.telegram_bot.keyboards import (
     MainMenuCB,
     build_about_project_kbd,
     build_main_menu_kbd,
-    build_start_kbd,
+    build_onboarding_marketplaces_kbd,
 )
 from lansly.apps.telegram_bot.messages import (
     about_project_message,
     menu_message,
-    start_message,
+    onboarding_start_message,
 )
+from lansly.apps.telegram_bot.states import OnboardingState
 from lansly.auth.telegram_auth import TelegramAuth
 from lansly.common.dto import CurrentUser
 from lansly.preferences.services import UserCategoryFollowService
@@ -35,12 +36,6 @@ SOURCE_PATTERN = re.compile(r"^source_(.+)$")
 
 
 @router.message(CommandStart())
-@router.message(
-    CommandStart(
-        deep_link=True,
-        magic=F.args.regexp(SOURCE_PATTERN),
-    ),
-)
 @inject
 async def start_handler(
     message: types.Message,
@@ -56,9 +51,16 @@ async def start_handler(
         match = SOURCE_PATTERN.fullmatch(command.args)
         source = match.group(1) if match is not None else None
     result = await auth.auth(source=source)
-    if result.is_new:
-        text = start_message()
-        keyboard = build_start_kbd()
+    current_state = await state.get_state()
+    should_start_onboarding = False
+    if result.is_new or current_state in {
+        OnboardingState.select_marketplace,
+        OnboardingState.select_direction,
+        OnboardingState.select_category,
+    }:
+        should_start_onboarding = True
+        text = onboarding_start_message()
+        keyboard = build_onboarding_marketplaces_kbd()
     else:
         categories = await service.get_followed_categories()
         text = menu_message(categories)
@@ -66,11 +68,10 @@ async def start_handler(
             is_pro=result.is_pro,
             is_admin=result.is_admin,
         )
-    await message.answer(
-        text,
-        reply_markup=keyboard,
-    )
+    await message.answer(text, reply_markup=keyboard)
     await state.clear()
+    if should_start_onboarding:
+        await state.set_state(OnboardingState.select_marketplace)
 
 
 @router.message(F.text, Command("menu"))

@@ -11,25 +11,43 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from lansly.preferences.consts import PRICE_FILTER_PRESETS
 from lansly.preferences.dto import CategoryWithFollowedStatusDTO
+from lansly.projects.consts import MARKETPLACE_LABELS, Marketplace
 from lansly.projects.models import Project, ProjectCategory
 from lansly.subscriptions.models import PlanSlug
+
+
+class OnboardingAction(StrEnum):
+    MARKETPLACE = "marketplace"
+    DIRECTION = "direction"
+    CATEGORY = "category"
+    BACK_TO_MARKETPLACES = "marketplaces"
+    BACK_TO_DIRECTIONS = "directions"
+
+
+class OnboardingCB(CallbackData, prefix="onboarding"):
+    action: OnboardingAction
+    marketplace: Marketplace | None = None
+    category_id: UUID | None = None
 
 
 class MainMenuCB(CallbackData, prefix="main_menu"):
     delete_message: bool = False
 
 
-class ManageAction(StrEnum):
-    BROWSE_CATEGORIES = "browse_categories"
-    BROWSE_SUBCATEGORIES = "browse_subcategories"
-    FOLLOW = "follow"
-    UNFOLLOW = "unfollow"
-    UNFOLLOW_ALL = "unfollow_all"
-    CONFIRM = "confirm"
+class CategorySettingsAction(StrEnum):
+    OPEN = "open"
+    MARKETPLACE = "marketplace"
+    DIRECTION = "direction"
+    TOGGLE = "toggle"
+    BACK_TO_MARKETPLACES = "marketplaces"
+    BACK_TO_DIRECTIONS = "directions"
+    DISABLE_ALL = "disable"
+    CONFIRM_DISABLE_ALL = "confirm_disable"
 
 
-class ManageFollowedCategoriesCB(CallbackData, prefix="manage_cat"):
-    action: ManageAction
+class CategorySettingsCB(CallbackData, prefix="cat_settings"):
+    action: CategorySettingsAction
+    marketplace: Marketplace | None = None
     category_id: UUID | None = None
 
 
@@ -42,11 +60,62 @@ class PresetPriceFilterCB(CallbackData, prefix="set_pf"):
     max_price: int
 
 
-def build_start_kbd() -> InlineKeyboardMarkup:
+def build_onboarding_marketplaces_kbd() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📂 Категории",
-        callback_data="configure_followed_categories",
+    for marketplace in Marketplace:
+        builder.button(
+            text=f"🏪 {MARKETPLACE_LABELS[marketplace]}",
+            callback_data=OnboardingCB(
+                action=OnboardingAction.MARKETPLACE,
+                marketplace=marketplace,
+            ).pack(),
+        )
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def build_onboarding_directions_kbd(categories: list[ProjectCategory]):
+    builder = InlineKeyboardBuilder()
+    for category in categories:
+        builder.row(
+            InlineKeyboardButton(
+                text=category.title,
+                callback_data=OnboardingCB(
+                    action=OnboardingAction.DIRECTION,
+                    category_id=category.id,
+                ).pack(),
+            ),
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="⬅️ Выбрать другую биржу",
+            callback_data=OnboardingCB(
+                action=OnboardingAction.BACK_TO_MARKETPLACES,
+            ).pack(),
+        ),
+    )
+    return builder.as_markup()
+
+
+def build_onboarding_categories_kbd(categories: list[ProjectCategory]):
+    builder = InlineKeyboardBuilder()
+    for category in categories:
+        builder.row(
+            InlineKeyboardButton(
+                text=category.title,
+                callback_data=OnboardingCB(
+                    action=OnboardingAction.CATEGORY,
+                    category_id=category.id,
+                ).pack(),
+            ),
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="⬅️ Выбрать другое направление",
+            callback_data=OnboardingCB(
+                action=OnboardingAction.BACK_TO_DIRECTIONS,
+            ).pack(),
+        ),
     )
     return builder.as_markup()
 
@@ -55,14 +124,10 @@ def build_main_menu_kbd(is_pro: bool = False, is_admin: bool = False):
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="📂 Категории",
-            callback_data="configure_followed_categories",
-        ),
-    )
-    builder.row(
-        InlineKeyboardButton(
-            text="👤 Профиль",
-            callback_data="profile",
+            text="📂 Источники и категории",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.OPEN,
+            ).pack(),
         ),
     )
     builder.row(
@@ -73,6 +138,12 @@ def build_main_menu_kbd(is_pro: bool = False, is_admin: bool = False):
         InlineKeyboardButton(
             text="💰 Фильтр цен",
             callback_data="price_filter_menu",
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="👤 Профиль",
+            callback_data="profile",
         ),
     )
     builder.row(
@@ -99,7 +170,35 @@ def build_main_menu_kbd(is_pro: bool = False, is_admin: bool = False):
     return builder.as_markup()
 
 
-def build_followed_categories_kbd(
+def build_category_settings_marketplaces_kbd() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for marketplace in Marketplace:
+        builder.button(
+            text=f"🏪 {MARKETPLACE_LABELS[marketplace]}",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.MARKETPLACE,
+                marketplace=marketplace,
+            ).pack(),
+        )
+    builder.row(
+        InlineKeyboardButton(
+            text="🗑 Отключить мониторинг",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.DISABLE_ALL,
+            ).pack(),
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="🏚 Меню",
+            callback_data=MainMenuCB(delete_message=True).pack(),
+        ),
+    )
+    builder.adjust(2, 1, 1)
+    return builder.as_markup()
+
+
+def build_category_settings_directions_kbd(
     categories: list[ProjectCategory],
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -107,18 +206,17 @@ def build_followed_categories_kbd(
         builder.row(
             InlineKeyboardButton(
                 text=category.title,
-                callback_data=ManageFollowedCategoriesCB(
-                    action=ManageAction.BROWSE_SUBCATEGORIES,
+                callback_data=CategorySettingsCB(
+                    action=CategorySettingsAction.DIRECTION,
                     category_id=category.id,
                 ).pack(),
             ),
         )
     builder.row(
         InlineKeyboardButton(
-            text="❌ Отписаться от всех",
-            callback_data=ManageFollowedCategoriesCB(
-                action=ManageAction.UNFOLLOW_ALL,
-                category_id=None,
+            text="⬅️ К источникам",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.BACK_TO_MARKETPLACES,
             ).pack(),
         ),
     )
@@ -131,31 +229,52 @@ def build_followed_categories_kbd(
     return builder.as_markup()
 
 
-def build_followed_subcategories_kbd(
+def build_category_settings_categories_kbd(
     categories: list[CategoryWithFollowedStatusDTO],
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for category in categories:
-        status = "✅" if category.is_followed else "⬜️"
-        action = (
-            ManageAction.FOLLOW
-            if not category.is_followed
-            else ManageAction.UNFOLLOW
-        )
+    for item in categories:
+        category = item.category
+        status = "✅" if item.is_followed else "⬜️"
         builder.row(
             InlineKeyboardButton(
-                text=f"{status} {category.category.title}",
-                callback_data=ManageFollowedCategoriesCB(
-                    action=action,
-                    category_id=category.category.id,
+                text=f"{status} {category.title}",
+                callback_data=CategorySettingsCB(
+                    action=CategorySettingsAction.TOGGLE,
+                    category_id=category.id,
                 ).pack(),
             ),
         )
     builder.row(
         InlineKeyboardButton(
-            text="🔙 Назад",
-            callback_data=ManageFollowedCategoriesCB(
-                action=ManageAction.BROWSE_CATEGORIES,
+            text="⬅️ К направлениям",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.BACK_TO_DIRECTIONS,
+            ).pack(),
+        ),
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text="🏚 Меню",
+            callback_data=MainMenuCB(delete_message=True).pack(),
+        ),
+    )
+    return builder.as_markup()
+
+
+def build_category_settings_disable_confirmation_kbd() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text="🗑 Отключить",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.CONFIRM_DISABLE_ALL,
+            ).pack(),
+        ),
+        InlineKeyboardButton(
+            text="⬅️ Отмена",
+            callback_data=CategorySettingsCB(
+                action=CategorySettingsAction.BACK_TO_MARKETPLACES,
             ).pack(),
         ),
     )

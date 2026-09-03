@@ -31,7 +31,23 @@ class FakeProjectCategoryGateway:
         self,
         source: str | None = None,
     ) -> list[ProjectCategory]:
-        raise NotImplementedError
+        categories = [
+            category
+            for category in self.existing
+            if category.parent_id is None
+            and (source is None or category.source == source)
+        ]
+        return sorted(categories, key=lambda category: category.title)
+
+    async def get_subcategories(
+        self,
+        parent_id: UUID,
+    ) -> list[ProjectCategory]:
+        return [
+            category
+            for category in self.existing
+            if category.parent_id == parent_id
+        ]
 
 
 class FakeProjectGateway:

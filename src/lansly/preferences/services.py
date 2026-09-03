@@ -17,6 +17,7 @@ from lansly.preferences.consts import (
 from lansly.preferences.dto import (
     CategoryWithFollowedStatusDTO,
     CountStopWordsDTO,
+    FollowCategoryDTO,
     StopWordsDTO,
     SubcategoriesWithFollowStatusDTO,
 )
@@ -109,13 +110,15 @@ class UserCategoryFollowService:
         is_pro_user = await self.subscription_checker.is_pro_user(user_id)
         return MAX_FREE_CATEGORIES if not is_pro_user else MAX_PRO_CATEGORIES
 
+    # TODO: все методы подписки и отписки категорий,
+    # добавить защиту от race condition
     async def toggle_category_follow(
         self,
         category_id: UUID,
     ) -> SubcategoriesWithFollowStatusDTO:
         user_id = await self.id_provider.get_current_user_id()
         category = await self.follow_gateway.get_category(category_id)
-        if not category:
+        if category is None or category.parent_id is None:
             raise ProjectCategoryNotFoundError
         follow = await self.follow_gateway.get(
             user_id=user_id,
@@ -167,6 +170,52 @@ class UserCategoryFollowService:
         return SubcategoriesWithFollowStatusDTO(
             categories=subcategories,
             limit=limit,
+        )
+
+    async def follow_category(
+        self,
+        category_id: UUID,
+    ) -> FollowCategoryDTO:
+        user_id = await self.id_provider.get_current_user_id()
+
+        category = await self.follow_gateway.get_category(category_id)
+        if category is None or category.parent_id is None:
+            raise ProjectCategoryNotFoundError
+
+        follow = await self.follow_gateway.get(
+            user_id=user_id,
+            category_id=category_id,
+        )
+        if follow is not None and follow.is_active:
+            return FollowCategoryDTO(
+                category_id=category.id,
+                title=category.title,
+            )
+
+        limit = await self._get_user_limit_and_available(user_id)
+        followed_count = (
+            await self.follow_gateway.get_count_followed_categories(user_id)
+        )
+        if followed_count >= limit:
+            raise UserCategoryFollowLimitExceededError(limit=limit)
+
+        now = datetime.now(UTC)
+        if follow is not None:
+            follow.is_active = True
+            follow.updated_at = now
+        else:
+            follow = UserCategoryFollow(
+                user_id=user_id,
+                category_id=category_id,
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+            await self.follow_gateway.add(follow)
+        await self.transaction_manager.commit()
+        return FollowCategoryDTO(
+            category_id=category.id,
+            title=category.title,
         )
 
 

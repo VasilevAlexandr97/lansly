@@ -32,6 +32,13 @@ class ProjectCategoryGateway(Protocol):
     ) -> list[ProjectCategory]:
         raise NotImplementedError
 
+    @abstractmethod
+    async def get_subcategories(
+        self,
+        parent_id: UUID,
+    ) -> list[ProjectCategory]:
+        raise NotImplementedError
+
 
 class ProjectGateway(Protocol):
     @abstractmethod
