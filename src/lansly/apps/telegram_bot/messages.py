@@ -23,6 +23,10 @@ from lansly.subscriptions.dto import SubscriptionInfoDTO
 from lansly.subscriptions.models import PlanSlug
 
 
+def truncate_project_description(text: str, length: int = 3000) -> str:
+    return text[:length] + "..." if len(text) > length else text
+
+
 def make_hashtag(title: str) -> str:
     cleaned = re.sub(r"[^\w\s]", "", title, flags=re.UNICODE)
     hashtag = cleaned.strip().replace(" ", "_").lower()
@@ -50,7 +54,7 @@ def kwork_project_message(project: Project, links: ProjectLinks) -> str:
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
         f"{customer_block}"
-        f"📝 {project.description}\n\n"
+        f"📝 {truncate_project_description(project.description)}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
         f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
     )
@@ -68,7 +72,7 @@ def flru_project_message(project: Project, links: ProjectLinks) -> str:
         f"📂 {project.category.title}\n\n"
         f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
         f"💰 Бюджет: {budget}\n\n"
-        f"📝 {project.description}\n\n"
+        f"📝 {truncate_project_description(project.description)}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
         f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
     )

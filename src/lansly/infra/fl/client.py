@@ -167,6 +167,28 @@ class FLClient(MarketplaceClient):
             )
             return 0
 
+    def _extract_description(self, node: Node) -> str:
+        for element in node.css("script, style"):
+            element.decompose()
+
+        # Сохраняем явные переносы.
+        for element in node.css("br"):
+            element.replace_with("\n")
+
+        # Разделяем абзацы и блоки.
+        for element in node.css("p, div, ul, ol"):
+            separator = "\n\n" if element.tag == "p" else "\n"
+            element.insert_before(separator)
+            element.insert_after(separator)
+
+        for element in node.css("li"):
+            element.insert_after("\n")
+
+        # strip=False сохраняет пробелы вокруг b, span, a и других тегов.
+        text = node.text(strip=False)
+        text = "\n".join(line.strip() for line in text.splitlines())
+        return re.sub(r"\n{3,}", "\n\n", text).strip()
+
     def _parse_project_item(self, node: Node) -> MarketplaceProject | None:
         node_id = node.attributes.get("id")
         pr_id = (
@@ -180,7 +202,9 @@ class FLClient(MarketplaceClient):
             return None
 
         desc = node.css_first(".b-post__body")
-        description = desc.text(strip=True) if desc is not None else ""
+        description = (
+            self._extract_description(desc) if desc is not None else ""
+        )
 
         price_node = node.css_first(".b-post__price")
         price_text = (
@@ -224,7 +248,7 @@ class FLClient(MarketplaceClient):
         if description_node is None:
             logger.warning("Project %s has not description", project_id)
             return None
-        description = description_node.text(strip=True)
+        description = self._extract_description(description_node)
 
         budget = 0
         has_exact_budget = False
