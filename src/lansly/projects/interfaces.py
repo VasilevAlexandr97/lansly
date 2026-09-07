@@ -100,6 +100,16 @@ class ProjectCollector(Protocol):
         raise NotImplementedError
 
 
+class MarketplaceUrlStrategy(Protocol):
+    source: Marketplace
+
+    def build_project_url(self, project: Project) -> str:
+        raise NotImplementedError
+
+    def build_customer_url(self, customer: Customer) -> str | None:
+        raise NotImplementedError
+
+
 class ProposalGenerationQueue(Protocol):
     @abstractmethod
     async def enqueue(self, user_id: UUID, project_id: UUID) -> None:

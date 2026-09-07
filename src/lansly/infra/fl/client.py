@@ -16,7 +16,7 @@ from lansly.projects.interfaces import MarketplaceClient
 logger = logging.getLogger(__name__)
 
 
-class FlRuClient(MarketplaceClient):
+class FLClient(MarketplaceClient):
     _BASE_URL = "https://www.fl.ru"
     _PAGE_SLUG_RE = re.compile(r"page-\d+$")
     _NO_BUDGET_PHRASES = (
@@ -115,7 +115,7 @@ class FlRuClient(MarketplaceClient):
             result.append(
                 MarketplaceCategory(
                     id=slug,
-                    source=Marketplace.FLRU,
+                    source=Marketplace.FL,
                     title=name,
                 ),
             )
@@ -199,7 +199,7 @@ class FlRuClient(MarketplaceClient):
         return MarketplaceProject(
             id=pr_id,
             category_id=None,
-            source=Marketplace.FLRU,
+            source=Marketplace.FL,
             price=price,
             possible_price_limit=price,
             has_exact_budget=has_exact_budget,
@@ -250,7 +250,7 @@ class FlRuClient(MarketplaceClient):
         return MarketplaceProject(
             id=project_id,
             category_id=self._parse_category_id(tree),
-            source=Marketplace.FLRU,
+            source=Marketplace.FL,
             price=budget,
             possible_price_limit=budget,
             has_exact_budget=has_exact_budget,

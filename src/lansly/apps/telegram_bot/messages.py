@@ -17,6 +17,7 @@ from lansly.projects.consts import (
     MAX_PRO_GENERATIONS,
     Marketplace,
 )
+from lansly.projects.dto import ProjectLinks
 from lansly.projects.models import Project, ProjectCategory
 from lansly.subscriptions.dto import SubscriptionInfoDTO
 from lansly.subscriptions.models import PlanSlug
@@ -31,11 +32,7 @@ def make_hashtag(title: str) -> str:
     return f"#{hashtag}"
 
 
-def project_message(project: Project, ref_id: int | None = None) -> str:
-    project_link = f"https://kwork.ru/projects/{project.external_id}"
-    if ref_id is not None:
-        project_link += f"?ref={ref_id}"
-
+def kwork_project_message(project: Project, links: ProjectLinks) -> str:
     customer_block = ""
     if project.customer:
         customer_block = (
@@ -51,16 +48,34 @@ def project_message(project: Project, ref_id: int | None = None) -> str:
             )
 
     return (
-        "🔔 Новый проект\n\n"
+        f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.KWORK]}</b>\n\n"
         f"📂 {project.category.title}\n\n"
-        f"📌 <a href='{project_link}'><b>{project.title}</b></a>\n\n"
+        f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
         f"💰 Бюджет\n"
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
         f"{customer_block}\n"
         f"📝 {project.description}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
-        f"🔗 <a href='{project_link}'>Ссылка на проект</a>"
+        f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
+    )
+
+
+def flru_project_message(project: Project, links: ProjectLinks) -> str:
+    budget = (
+        f"{project.price} ₽"
+        if project.has_exact_budget
+        else "по договорённости"
+    )
+
+    return (
+        f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.FL]}</b>\n\n"
+        f"📂 {project.category.title}\n\n"
+        f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
+        f"💰 Бюджет: {budget}\n\n"
+        f"📝 {project.description}\n\n"
+        f"{make_hashtag(project.category.title)}\n\n"
+        f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
     )
 
 

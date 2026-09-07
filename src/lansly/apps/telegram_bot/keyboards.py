@@ -1,3 +1,4 @@
+from lansly.projects.dto import ProjectLinks
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -411,13 +412,7 @@ def build_start_set_price_filter_kbd() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def build_project_kbd(project: Project, ref_id: int | None = None):
-    project_link = f"https://kwork.ru/projects/{project.external_id}"
-    customer_link = None
-    if project.customer and project.customer.username:
-        customer_link = f"https://kwork.ru/user/{project.customer.username}"
-    if ref_id is not None:
-        project_link += f"?ref={ref_id}"
+def build_project_kbd(project: Project, links: ProjectLinks):
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
@@ -425,13 +420,11 @@ def build_project_kbd(project: Project, ref_id: int | None = None):
             callback_data=GenerateProposalCB(project_id=project.id).pack(),
         ),
     )
-    if customer_link:
+    if links.customer_url is not None:
         builder.row(
-            InlineKeyboardButton(text="👤 Заказчик", url=customer_link),
+            InlineKeyboardButton(text="👤 Заказчик", url=links.customer_url),
         )
-    builder.row(
-        InlineKeyboardButton(text="🔗 Проект", url=project_link),
-    )
+    builder.row(InlineKeyboardButton(text="🔗 Проект", url=links.project_url))
     builder.row(
         InlineKeyboardButton(
             text="🏚 Меню",
@@ -441,15 +434,12 @@ def build_project_kbd(project: Project, ref_id: int | None = None):
     return builder.as_markup()
 
 
-def build_channel_project_kbd(project: Project, ref_id: int | None = None):
-    project_link = f"https://kwork.ru/projects/{project.external_id}"
-    if ref_id is not None:
-        project_link += f"?ref={ref_id}"
+def build_channel_project_kbd(links: ProjectLinks):
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
             text="🔗 Проект",
-            url=project_link,
+            url=links.project_url,
         ),
     )
     builder.row(

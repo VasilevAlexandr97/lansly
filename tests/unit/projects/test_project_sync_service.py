@@ -138,17 +138,17 @@ async def test_sync_with_acquired_lock_collects_and_saves_projects(
 ):
     """При полученном lock синхронизация выполняется с его настройками."""
     collector = FakeProjectCollector(
-        source=Marketplace.FLRU,
+        source=Marketplace.FL,
         projects=[
             make_project(
                 "p1",
                 "1",
-                source=Marketplace.FLRU,
+                source=Marketplace.FL,
             ),
         ],
     )
     lock = LockOptions(
-        key="projects:sync:flru",
+        key="projects:sync:fl",
         timeout=300,
         blocking=True,
         blocking_timeout=5,
@@ -157,8 +157,8 @@ async def test_sync_with_acquired_lock_collects_and_saves_projects(
         collector=collector,
         lock=lock,
     )
-    sync_service.integrations = {Marketplace.FLRU: integration}
-    result = await sync_service.sync(Marketplace.FLRU)
+    sync_service.integrations = {Marketplace.FL: integration}
+    result = await sync_service.sync(Marketplace.FL)
 
     assert collector.collect_calls == 1
     assert project_gateway.bulk_insert_calls == 1
@@ -167,7 +167,7 @@ async def test_sync_with_acquired_lock_collects_and_saves_projects(
 
     assert lock_manager.calls == [
         LockCall(
-            key="projects:sync:flru",
+            key="projects:sync:fl",
             timeout=300,
             blocking=True,
             blocking_timeout=5,
@@ -188,17 +188,17 @@ async def test_sync_with_busy_lock_does_not_start_collector(
     """При занятом lock синхронизация не запускает collector."""
     lock_manager.acquired = False
     collector = FakeProjectCollector(
-        source=Marketplace.FLRU,
+        source=Marketplace.FL,
         projects=[
             make_project(
                 "p1",
                 "1",
-                source=Marketplace.FLRU,
+                source=Marketplace.FL,
             ),
         ],
     )
     lock = LockOptions(
-        key="projects:sync:flru",
+        key="projects:sync:fl",
         timeout=300,
         blocking=False,
     )
@@ -206,9 +206,9 @@ async def test_sync_with_busy_lock_does_not_start_collector(
         collector=collector,
         lock=lock,
     )
-    sync_service.integrations = {Marketplace.FLRU: integration}
+    sync_service.integrations = {Marketplace.FL: integration}
 
-    result = await sync_service.sync(Marketplace.FLRU)
+    result = await sync_service.sync(Marketplace.FL)
 
     assert result == []
     assert collector.collect_calls == 0
@@ -403,7 +403,7 @@ async def test_rejects_projects_from_another_source(
                 make_project(
                     "p1",
                     "1",
-                    source=Marketplace.FLRU,
+                    source=Marketplace.FL,
                     customer=customer,
                 ),
             ],

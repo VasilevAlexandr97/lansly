@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
         },
         {
             "cron": "* * * * *",
-            "args": [Marketplace.FLRU],
-            "schedule_id": "projects-sync:flru",
+            "args": [Marketplace.FL],
+            "schedule_id": "projects-sync:fl",
         },
     ],
 )

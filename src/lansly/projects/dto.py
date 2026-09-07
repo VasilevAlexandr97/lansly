@@ -46,3 +46,9 @@ class MarketplaceCustomer:
     profile_picture: str | None = None
     user_projects_count: int | None = None
     user_hired_percent: int | None = None
+
+
+@dataclass(frozen=True)
+class ProjectLinks:
+    project_url: str
+    customer_url: str | None = None

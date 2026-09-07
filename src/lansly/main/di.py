@@ -55,8 +55,10 @@ from lansly.common.interfaces.password_hasher import PasswordHasher
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.common.password_hasher_bcrypt import PasswordHasherBcrypt
 from lansly.infra.database.transaction_manager import SATransactionManager
-from lansly.infra.flru.client import FlRuClient
+from lansly.infra.fl.client import FLClient
+from lansly.infra.fl.urls import FLUrlStrategy
 from lansly.infra.kwork.client import KworkClient
+from lansly.infra.kwork.urls import KworkUrlStrategy
 from lansly.infra.polza.client import PolzaClient
 from lansly.infra.polza.limiter import PolzaRateLimiter
 from lansly.infra.redis.lock_manager import RedisDistributedLockManager
@@ -121,6 +123,7 @@ from lansly.projects.interfaces import (
     CustomerGateway,
     GenerationLimitChecker,
     MarketplaceClient,
+    MarketplaceUrlStrategy,
     ProjectCategoryGateway,
     ProjectGateway,
     ProposalGenerationQueue,
@@ -131,6 +134,7 @@ from lansly.projects.services import (
     ProjectProposalRequestService,
     ProjectSyncService,
 )
+from lansly.projects.urls import MarketplaceUrlBuilder
 from lansly.projects.usage_checker import GenerationLimitCheckerImpl
 from lansly.statistics.gateways import (
     SADailyMetricsGateway,
@@ -241,8 +245,22 @@ class InfraProvider(Provider):
         )
 
     @provide(scope=Scope.APP)
-    def get_flru_client(self) -> FlRuClient:
-        return FlRuClient()
+    def get_flru_client(self) -> FLClient:
+        return FLClient()
+
+    @provide(scope=Scope.APP, provides=MarketplaceUrlStrategy)
+    def get_kwork_url_strategy(self, config: Config) -> KworkUrlStrategy:
+        return KworkUrlStrategy(ref_id=config.kwork.ref_id)
+
+    @provide(scope=Scope.APP, provides=MarketplaceUrlStrategy)
+    def get_flru_url_strategy(self, config: Config) -> FLUrlStrategy:
+        return FLUrlStrategy(ref_id=config.fl.ref_id)
+
+    url_strategies = collect(
+        MarketplaceUrlStrategy,
+        scope=Scope.APP,
+        provides=Sequence[MarketplaceUrlStrategy],
+    )
 
     @provide(scope=Scope.APP)
     def get_telegram_notifier(self, bot: Bot) -> TelegramNotifier:
@@ -383,7 +401,7 @@ class ProjectProvider(Provider):
     )
 
     flru_client_port = alias(
-        source=FlRuClient,
+        source=FLClient,
         provides=MarketplaceClient,
     )
 
@@ -392,6 +410,13 @@ class ProjectProvider(Provider):
         scope=Scope.APP,
         provides=Sequence[MarketplaceClient],
     )
+
+    @provide(scope=Scope.APP)
+    def get_url_builder(
+        self,
+        strategies: Sequence[MarketplaceUrlStrategy],
+    ) -> MarketplaceUrlBuilder:
+        return MarketplaceUrlBuilder(strategies)
 
     @provide(scope=Scope.REQUEST)
     def get_project_category_service(
@@ -416,7 +441,7 @@ class ProjectProvider(Provider):
     @provide(scope=Scope.REQUEST)
     def get_flru_project_collector(
         self,
-        client: FlRuClient,
+        client: FLClient,
         project_gateway: ProjectGateway,
     ) -> FlRuProjectCollector:
         return FlRuProjectCollector(client, project_gateway)
@@ -436,7 +461,7 @@ class ProjectProvider(Provider):
         return MarketplaceIntegration(
             collector=collector,
             lock=LockOptions(
-                key="project:sync:flru",
+                key="project:sync:fl",
                 timeout=900,
                 blocking=False,
             ),
@@ -538,7 +563,7 @@ class NotificationProvider(Provider):
     )
 
     @provide(scope=Scope.REQUEST)
-    async def get_project_notification_service(
+    async def get_project_notification_service(  # noqa: PLR0917
         self,
         project_gateway: ProjectGateway,
         follow_gateway: UserCategoryFollowGateway,
@@ -548,6 +573,7 @@ class NotificationProvider(Provider):
         channel_notification_gateway: ChannelNotificationGateway,
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
+        url_builder: MarketplaceUrlBuilder,
         redis: Redis,
         config: Config,
     ) -> ProjectNotificationService:
@@ -560,8 +586,8 @@ class NotificationProvider(Provider):
             channel_notification_gateway=channel_notification_gateway,
             telegram_notifier=telegram_notifier,
             transaction_manager=transaction_manager,
+            url_builder=url_builder,
             redis=redis,
-            kwork_ref_id=config.kwork.ref_id,
             channel_id=config.telegram_channel_id,
         )
 

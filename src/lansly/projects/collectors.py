@@ -21,7 +21,7 @@ class KworkProjectCollector(ProjectCollector):
 
 
 class FlRuProjectCollector(ProjectCollector):
-    source = Marketplace.FLRU
+    source = Marketplace.FL
 
     def __init__(
         self,

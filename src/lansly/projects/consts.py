@@ -3,10 +3,10 @@ from enum import StrEnum
 
 class Marketplace(StrEnum):
     KWORK = "kwork"
-    FLRU = "flru"
+    FL = "fl"
 
 
-MARKETPLACE_LABELS = {Marketplace.KWORK: "Kwork", Marketplace.FLRU: "FL.ru"}
+MARKETPLACE_LABELS = {Marketplace.KWORK: "KWORK", Marketplace.FL: "FL"}
 
 
 MAX_FREE_GENERATIONS = 3

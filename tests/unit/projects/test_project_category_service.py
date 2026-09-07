@@ -215,17 +215,17 @@ async def test_import_categories_from_multiple_sources(
 ):
     kwork = FakeMarketPlaceClient(
         categories=[
-            category("k1", "Kwork Cat", source=Marketplace.KWORK),
-        ]
+            category("k1", "KWORK Cat", source=Marketplace.KWORK),
+        ],
     )
-    flru = FakeMarketPlaceClient(
+    fl = FakeMarketPlaceClient(
         categories=[
-            category("f1", "FlRu Cat", source=Marketplace.FLRU),
-        ]
+            category("f1", "FL Cat", source=Marketplace.FL),
+        ],
     )
     service = ProjectCategoryService(
         gateway=category_gateway,
-        marketplace_clients=[kwork, flru],
+        clients=[kwork, fl],
         transaction_manager=txn,
     )
 
@@ -234,7 +234,7 @@ async def test_import_categories_from_multiple_sources(
     assert category_gateway.upsert_calls == 2  # once per source
     by_ext = {c.external_id: c for c in category_gateway.upserted}
     assert by_ext["k1"].source == Marketplace.KWORK
-    assert by_ext["f1"].source == Marketplace.FLRU
+    assert by_ext["f1"].source == Marketplace.FL
     assert txn.commits == 1
 
 
@@ -244,17 +244,17 @@ async def test_same_external_id_different_sources_no_collision(
 ):
     kwork = FakeMarketPlaceClient(
         categories=[
-            category("1", "Kwork Design", source=Marketplace.KWORK),
-        ]
+            category("1", "KWORK Design", source=Marketplace.KWORK),
+        ],
     )
-    flru = FakeMarketPlaceClient(
+    fl = FakeMarketPlaceClient(
         categories=[
-            category("1", "FlRu Design", source=Marketplace.FLRU),
-        ]
+            category("1", "FL Design", source=Marketplace.FL),
+        ],
     )
     service = ProjectCategoryService(
         gateway=category_gateway,
-        marketplace_clients=[kwork, flru],
+        clients=[kwork, fl],
         transaction_manager=FakeTransactionManager(),
     )
 
@@ -262,9 +262,9 @@ async def test_same_external_id_different_sources_no_collision(
 
     by_ext = {c.external_id: c for c in category_gateway.upserted}
     assert len(by_ext) == 1  # same key
-    # Последний upsert побеждает (flru)
-    assert by_ext["1"].source == Marketplace.FLRU
-    assert by_ext["1"].title == "FlRu Design"
+    # Последний upsert побеждает (fl)
+    assert by_ext["1"].source == Marketplace.FL
+    assert by_ext["1"].title == "FL Design"
 
 
 @pytest.mark.asyncio
