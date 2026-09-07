@@ -69,6 +69,34 @@ class KworkClient(MarketplaceClient):
             if project.id is None:
                 logger.info(f"Skip kwork project without id: {project}")
                 continue
+            customer = None
+            customer_user_id = project.user_id
+            customer_username = project.username
+            customer_profile_picture = project.profile_picture
+            customer_projects_count = project.user_projects_count
+            customer_hired_percent = project.user_hired_percent
+            if customer_user_id is not None and customer_username is not None:
+                customer = MarketplaceCustomer(
+                    id=str(project.user_id),
+                    username=customer_username,
+                    profile_picture=(
+                        customer_profile_picture
+                        if customer_profile_picture
+                        and "noprofilepicture.gif"
+                        not in customer_profile_picture
+                        else None
+                    ),
+                    user_projects_count=(
+                        customer_projects_count
+                        if customer_projects_count is not None
+                        else 0
+                    ),
+                    user_hired_percent=(
+                        customer_hired_percent
+                        if customer_hired_percent is not None
+                        else 0
+                    ),
+                )
             result.append(
                 MarketplaceProject(
                     id=str(project.id),
@@ -88,15 +116,7 @@ class KworkClient(MarketplaceClient):
                     title=project.title or "",
                     description=project.description or "",
                     offers=project.offers if project.offers is not None else 0,
-                    customer=MarketplaceCustomer(
-                        id=str(project.user_id),
-                        username=project.username,
-                        profile_picture=project.profile_picture,
-                        user_projects_count=project.user_projects_count,
-                        user_hired_percent=project.user_hired_percent,
-                    )
-                    if project.user_id is not None
-                    else None,
+                    customer=customer,
                 ),
             )
         return result

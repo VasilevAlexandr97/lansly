@@ -42,10 +42,10 @@ class MarketplaceProject:
 @dataclass
 class MarketplaceCustomer:
     id: str
-    username: str | None = None
+    username: str
     profile_picture: str | None = None
-    user_projects_count: int | None = None
-    user_hired_percent: int | None = None
+    user_projects_count: int = 0
+    user_hired_percent: int = 0
 
 
 @dataclass(frozen=True)

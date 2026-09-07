@@ -131,14 +131,14 @@ class Customer(Base):
         default=Marketplace.KWORK,
         nullable=False,
     )
-    username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    username: Mapped[str] = mapped_column(String(255), nullable=False)
     profile_picture: Mapped[str | None] = mapped_column(
         String(512),
         nullable=True,
     )
     # Kwork-specific
-    user_projects_count: Mapped[int | None] = mapped_column(nullable=True)
-    user_hired_percent: Mapped[int | None] = mapped_column(nullable=True)
+    user_projects_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    user_hired_percent: Mapped[int] = mapped_column(default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

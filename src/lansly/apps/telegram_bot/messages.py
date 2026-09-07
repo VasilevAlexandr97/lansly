@@ -35,18 +35,13 @@ def make_hashtag(title: str) -> str:
 def kwork_project_message(project: Project, links: ProjectLinks) -> str:
     customer_block = ""
     if project.customer:
+        username = project.customer.username
         customer_block = (
             f"👤 Заказчик\n"
-            f"• Проектов: {project.customer.user_projects_count or 0}\n"
-            f"• Нанято: {project.customer.user_hired_percent or 0}%\n"
+            f"• Проектов: {project.customer.user_projects_count}\n"
+            f"• Нанято: {project.customer.user_hired_percent}%\n"
+            f"• Профиль: <a href='{links.customer_url}'>{username}</a>\n\n"
         )
-        username = project.customer.username
-        if username is not None:
-            profile_link = f"https://kwork.ru/user/{username}"
-            customer_block += (
-                f"• Профиль: <a href='{profile_link}'>{username}</a>\n"
-            )
-
     return (
         f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.KWORK]}</b>\n\n"
         f"📂 {project.category.title}\n\n"
@@ -54,7 +49,7 @@ def kwork_project_message(project: Project, links: ProjectLinks) -> str:
         f"💰 Бюджет\n"
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
-        f"{customer_block}\n"
+        f"{customer_block}"
         f"📝 {project.description}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
         f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"

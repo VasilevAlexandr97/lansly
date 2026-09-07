@@ -27,9 +27,9 @@ from lansly.projects.services import ProjectSyncService
 def make_customer(
     external_id: str,
     *,
-    username: str | None = "testuser",
-    user_projects_count: int | None = 10,
-    user_hired_percent: int | None = 50,
+    username: str = "testuser",
+    user_projects_count: int = 10,
+    user_hired_percent: int = 50,
 ) -> MarketplaceCustomer:
     return MarketplaceCustomer(
         id=external_id,
