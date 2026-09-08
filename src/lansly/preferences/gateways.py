@@ -125,6 +125,54 @@ class UserCategoryFollowGateway:
         )
         return list(await self.session.scalars(stmt))
 
+    async def get_directions_with_follow_counts(
+        self,
+        user_id: UUID,
+        source: str,
+    ) -> list[tuple[UUID, str, int, int]]:
+        counts = (
+            select(
+                ProjectCategory.parent_id,
+                functions.count(UserCategoryFollow.user_id).label(
+                    "followed_count",
+                ),
+                functions.count(ProjectCategory.id).label("total_count"),
+            )
+            .outerjoin(
+                UserCategoryFollow,
+                and_(
+                    ProjectCategory.id == UserCategoryFollow.category_id,
+                    UserCategoryFollow.user_id == user_id,
+                    UserCategoryFollow.is_active.is_(True),
+                ),
+            )
+            .where(
+                ProjectCategory.source == source,
+                ProjectCategory.parent_id.is_not(None),
+            )
+            .group_by(ProjectCategory.parent_id)
+        ).subquery()
+
+        stmt = (
+            select(
+                ProjectCategory.id,
+                ProjectCategory.title,
+                functions.coalesce(counts.c.followed_count, 0),
+                functions.coalesce(counts.c.total_count, 0),
+            )
+            .outerjoin(
+                counts,
+                ProjectCategory.id == counts.c.parent_id,
+            )
+            .where(
+                ProjectCategory.source == source,
+                ProjectCategory.parent_id.is_(None),
+            )
+            .order_by(ProjectCategory.title)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.tuples().all())
+
     async def get_subcategories_with_follow_status(
         self,
         user_id: UUID,
@@ -299,9 +347,8 @@ class SAUserPriceFilterGateway(UserPriceFilterGateway):
         await self.session.execute(stmt)
 
     async def get_by_user_id(self, user_id: UUID) -> UserPriceFilter | None:
-        stmt = (
-            select(UserPriceFilter)
-            .where(UserPriceFilter.user_id == user_id)
+        stmt = select(UserPriceFilter).where(
+            UserPriceFilter.user_id == user_id,
         )
         return await self.session.scalar(stmt)
 

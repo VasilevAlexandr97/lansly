@@ -5,6 +5,14 @@ from lansly.projects.models import ProjectCategory
 
 
 @dataclass(frozen=True)
+class DirectionWithFollowCountsDTO:
+    id: UUID
+    title: str
+    followed_count: int
+    total_count: int
+
+
+@dataclass(frozen=True)
 class CategoryWithFollowedStatusDTO:
     category: ProjectCategory
     is_followed: bool

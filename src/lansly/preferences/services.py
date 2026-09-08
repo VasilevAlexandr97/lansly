@@ -17,6 +17,7 @@ from lansly.preferences.consts import (
 from lansly.preferences.dto import (
     CategoryWithFollowedStatusDTO,
     CountStopWordsDTO,
+    DirectionWithFollowCountsDTO,
     FollowCategoryDTO,
     StopWordsDTO,
     SubcategoriesWithFollowStatusDTO,
@@ -77,6 +78,25 @@ class UserCategoryFollowService:
         return [
             CategoryWithFollowedStatusDTO(category=row[0], is_followed=row[1])
             for row in rows
+        ]
+
+    async def get_directions_with_follow_counts(
+        self,
+        source: str,
+    ) -> list[DirectionWithFollowCountsDTO]:
+        user_id = await self.id_provider.get_current_user_id()
+        rows = await self.follow_gateway.get_directions_with_follow_counts(
+            user_id=user_id,
+            source=source,
+        )
+        return [
+            DirectionWithFollowCountsDTO(
+                id=direction_id,
+                title=title,
+                followed_count=followed_count,
+                total_count=total_count,
+            )
+            for direction_id, title, followed_count, total_count in rows
         ]
 
     async def get_subcategories_with_follow_status(

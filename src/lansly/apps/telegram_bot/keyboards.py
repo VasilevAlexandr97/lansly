@@ -1,4 +1,3 @@
-from lansly.projects.dto import ProjectLinks
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -11,8 +10,12 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from lansly.preferences.consts import PRICE_FILTER_PRESETS
-from lansly.preferences.dto import CategoryWithFollowedStatusDTO
+from lansly.preferences.dto import (
+    CategoryWithFollowedStatusDTO,
+    DirectionWithFollowCountsDTO,
+)
 from lansly.projects.consts import MARKETPLACE_LABELS, Marketplace
+from lansly.projects.dto import ProjectLinks
 from lansly.projects.models import Project, ProjectCategory
 from lansly.subscriptions.models import PlanSlug
 
@@ -200,16 +203,19 @@ def build_category_settings_marketplaces_kbd() -> InlineKeyboardMarkup:
 
 
 def build_category_settings_directions_kbd(
-    categories: list[ProjectCategory],
+    directions: list[DirectionWithFollowCountsDTO],
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for category in categories:
+    for direction in directions:
         builder.row(
             InlineKeyboardButton(
-                text=category.title,
+                text=(
+                    f"{direction.title}"
+                    f"[{direction.followed_count}/{direction.total_count}]"
+                ),
                 callback_data=CategorySettingsCB(
                     action=CategorySettingsAction.DIRECTION,
-                    category_id=category.id,
+                    category_id=direction.id,
                 ).pack(),
             ),
         )

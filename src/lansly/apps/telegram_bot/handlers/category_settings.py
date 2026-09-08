@@ -26,7 +26,6 @@ from lansly.apps.telegram_bot.states import CategorySettingsState
 from lansly.common.dto import CurrentUser
 from lansly.preferences.exceptions import UserCategoryFollowLimitExceededError
 from lansly.preferences.services import UserCategoryFollowService
-from lansly.projects.services import ProjectCategoryService
 
 router = Router()
 router.message.filter(F.chat.type == ChatType.PRIVATE)
@@ -72,7 +71,7 @@ async def back_to_marketplaces_handler(
 @inject
 async def back_to_directions_handler(
     call: types.CallbackQuery,
-    service: FromDishka[ProjectCategoryService],
+    follow_service: FromDishka[UserCategoryFollowService],
     state: FSMContext,
 ):
     marketplace = await state.get_value("marketplace")
@@ -82,13 +81,15 @@ async def back_to_directions_handler(
             show_alert=True,
         )
         return
-    root_categories = await service.get_root_categories(marketplace)
+    directions = await follow_service.get_directions_with_follow_counts(
+        marketplace,
+    )
     await state.update_data(
         marketplace=marketplace,
-        directions={str(c.id): c.title for c in root_categories},
+        directions={str(item.id): item.title for item in directions},
     )
     text = category_settings_select_direction_message(marketplace)
-    keyboard = build_category_settings_directions_kbd(root_categories)
+    keyboard = build_category_settings_directions_kbd(directions)
     await call.message.edit_text(text, reply_markup=keyboard)
     await state.set_state(CategorySettingsState.select_direction)
     await call.answer()
@@ -126,7 +127,7 @@ async def open_category_settings_handler(
 @inject
 async def select_marketplace_handler(
     call: types.CallbackQuery,
-    service: FromDishka[ProjectCategoryService],
+    follow_service: FromDishka[UserCategoryFollowService],
     callback_data: CategorySettingsCB,
     state: FSMContext,
 ):
@@ -137,13 +138,15 @@ async def select_marketplace_handler(
             show_alert=True,
         )
         return
-    root_categories = await service.get_root_categories(marketplace)
+    directions = await follow_service.get_directions_with_follow_counts(
+        marketplace,
+    )
     await state.update_data(
         marketplace=marketplace,
-        directions={str(c.id): c.title for c in root_categories},
+        directions={str(item.id): item.title for item in directions},
     )
     text = category_settings_select_direction_message(marketplace)
-    keyboard = build_category_settings_directions_kbd(root_categories)
+    keyboard = build_category_settings_directions_kbd(directions)
     await call.message.edit_text(text, reply_markup=keyboard)
     await state.set_state(CategorySettingsState.select_direction)
     await call.answer()
