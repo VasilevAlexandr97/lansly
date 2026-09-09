@@ -13,7 +13,7 @@ from lansly.apps.telegram_bot.keyboards import (
 )
 from lansly.apps.telegram_bot.messages import (
     categories_limit_exceeded_message,
-    category_selection_expired_message,
+    monitoring_setup_expired_message,
     onboarding_complete_message,
     onboarding_select_category_message,
     onboarding_select_direction_message,
@@ -42,7 +42,7 @@ async def back_to_marketplaces_handler(
 ):
     if not isinstance(call.message, types.Message):
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -66,7 +66,7 @@ async def back_to_directions_handler(
     marketplace = await state.get_value("marketplace")
     if marketplace is None or not isinstance(call.message, types.Message):
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -99,7 +99,7 @@ async def select_marketplace_handler(
     marketplace = callback_data.marketplace
     if marketplace is None or not isinstance(call.message, types.Message):
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -132,7 +132,7 @@ async def select_direction_handler(
     direction = callback_data.category_id
     if direction is None or not isinstance(call.message, types.Message):
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -142,7 +142,7 @@ async def select_direction_handler(
     direction_name = directions.get(str(direction))
     if marketplace is None or direction_name is None:
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -179,7 +179,7 @@ async def select_category_handler(
     category_id = callback_data.category_id
     if category_id is None or not isinstance(call.message, types.Message):
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -189,7 +189,7 @@ async def select_category_handler(
     category_title = categories.get(str(category_id))
     if marketplace is None or category_title is None:
         await call.answer(
-            category_selection_expired_message(),
+            monitoring_setup_expired_message(),
             show_alert=True,
         )
         return
@@ -216,6 +216,6 @@ async def expired_onboarding_callback_handler(
     call: types.CallbackQuery,
 ):
     await call.answer(
-        category_selection_expired_message(),
+        monitoring_setup_expired_message(),
         show_alert=True,
     )

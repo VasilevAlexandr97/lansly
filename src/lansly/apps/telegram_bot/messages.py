@@ -198,7 +198,7 @@ def categories_limit_exceeded_message(limit: int) -> str:
     )
 
 
-def category_selection_expired_message() -> str:
+def monitoring_setup_expired_message() -> str:
     return "⌛ Сессия настройки устарела. Начните настройку заново."
 
 
