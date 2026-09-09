@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from lansly.projects.consts import Marketplace
 from lansly.projects.models import ProjectCategory
 
 
@@ -22,6 +23,12 @@ class CategoryWithFollowedStatusDTO:
 class SubcategoriesWithFollowStatusDTO:
     categories: list[CategoryWithFollowedStatusDTO]
     limit: int
+
+
+@dataclass(frozen=True)
+class SourceCategoryFollowCountDTO:
+    source: Marketplace
+    followed_count: int
 
 
 @dataclass

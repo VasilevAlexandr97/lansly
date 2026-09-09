@@ -62,8 +62,8 @@ async def start_handler(
         text = onboarding_start_message()
         keyboard = build_onboarding_marketplaces_kbd()
     else:
-        categories = await service.get_followed_categories()
-        text = menu_message(categories)
+        follow_counts = await service.get_followed_category_counts_by_source()
+        text = menu_message(follow_counts)
         keyboard = build_main_menu_kbd(
             is_pro=result.is_pro,
             is_admin=result.is_admin,
@@ -82,8 +82,8 @@ async def main_menu_command_handler(
     current_user: FromDishka[CurrentUser],
     state: FSMContext,
 ):
-    categories = await service.get_followed_categories()
-    text = menu_message(categories)
+    follow_counts = await service.get_followed_category_counts_by_source()
+    text = menu_message(follow_counts)
     keyboard = build_main_menu_kbd(
         is_pro=current_user.is_pro,
         is_admin=current_user.is_admin,
@@ -101,8 +101,8 @@ async def main_menu_cb_handler(
     state: FSMContext,
     callback_data: MainMenuCB,
 ):
-    categories = await service.get_followed_categories()
-    text = menu_message(categories)
+    follow_counts = await service.get_followed_category_counts_by_source()
+    text = menu_message(follow_counts)
     keyboard = build_main_menu_kbd(
         is_pro=current_user.is_pro,
         is_admin=current_user.is_admin,

@@ -19,6 +19,7 @@ from lansly.preferences.dto import (
     CountStopWordsDTO,
     DirectionWithFollowCountsDTO,
     FollowCategoryDTO,
+    SourceCategoryFollowCountDTO,
     StopWordsDTO,
     SubcategoriesWithFollowStatusDTO,
 )
@@ -44,8 +45,8 @@ from lansly.preferences.validators import (
     freelancer_profile_about_validator,
     price_filter_range_validator,
 )
+from lansly.projects.consts import Marketplace
 from lansly.projects.exceptions import ProjectCategoryNotFoundError
-from lansly.projects.models import ProjectCategory
 from lansly.subscriptions.interfaces import (
     SubscriptionChecker,
 )
@@ -80,6 +81,23 @@ class UserCategoryFollowService:
             for row in rows
         ]
 
+    async def get_followed_category_counts_by_source(
+        self,
+    ) -> list[SourceCategoryFollowCountDTO]:
+        user_id = await self.id_provider.get_current_user_id()
+        counts = (
+            await self.follow_gateway.get_followed_category_counts_by_source(
+                user_id,
+            )
+        )
+        return [
+            SourceCategoryFollowCountDTO(
+                source=source,
+                followed_count=counts.get(source, 0),
+            )
+            for source in Marketplace
+        ]
+
     async def get_directions_with_follow_counts(
         self,
         source: str,
@@ -109,22 +127,10 @@ class UserCategoryFollowService:
             parent_id=parent_id,
         )
 
-    async def _get_followed_categories(
-        self,
-        user_id: UUID,
-    ) -> list[ProjectCategory]:
-        follows = await self.follow_gateway.get_follows_with_category(user_id)
-        return [follow.category for follow in follows]
-
-    async def get_followed_categories(self) -> list[ProjectCategory]:
-        user_id = await self.id_provider.get_current_user_id()
-        return await self._get_followed_categories(user_id)
-
-    async def unfollow_all_categories(self) -> list[ProjectCategory]:
+    async def unfollow_all_categories(self):
         user_id = await self.id_provider.get_current_user_id()
         await self.follow_gateway.deactivate_all(user_id)
         await self.transaction_manager.commit()
-        return await self._get_followed_categories(user_id)
 
     async def _get_user_limit_and_available(self, user_id: UUID) -> int:
         is_pro_user = await self.subscription_checker.is_pro_user(user_id)

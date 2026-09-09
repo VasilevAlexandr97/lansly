@@ -5,7 +5,6 @@ from sqlalchemy import and_, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import functions
 
 from lansly.preferences.exceptions import (
@@ -111,19 +110,29 @@ class UserCategoryFollowGateway:
             return 0
         return result
 
-    async def get_follows_with_category(
+    async def get_followed_category_counts_by_source(
         self,
         user_id: UUID,
-    ) -> list[UserCategoryFollow]:
+    ) -> dict[str, int]:
         stmt = (
-            select(UserCategoryFollow)
-            .options(joinedload(UserCategoryFollow.category))
-            .where(
-                UserCategoryFollow.user_id == user_id,
-                UserCategoryFollow.is_active.is_(True),
+            select(
+                ProjectCategory.source,
+                functions.count(UserCategoryFollow.category_id),
             )
+            .select_from(ProjectCategory)
+            .outerjoin(
+                UserCategoryFollow,
+                and_(
+                    UserCategoryFollow.category_id == ProjectCategory.id,
+                    UserCategoryFollow.user_id == user_id,
+                    UserCategoryFollow.is_active.is_(True),
+                ),
+            )
+            .group_by(ProjectCategory.source)
         )
-        return list(await self.session.scalars(stmt))
+        result = await self.session.execute(stmt)
+        return dict(result.tuples().all())
+
 
     async def get_directions_with_follow_counts(
         self,

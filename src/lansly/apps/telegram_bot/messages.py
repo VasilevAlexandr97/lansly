@@ -10,6 +10,7 @@ from lansly.preferences.consts import (
     MAX_LENGTH_FREELANCER_PROFILE,
     MAX_PRO_STOP_WORDS,
 )
+from lansly.preferences.dto import SourceCategoryFollowCountDTO
 from lansly.preferences.models import UserPriceFilter
 from lansly.projects.consts import (
     MARKETPLACE_LABELS,
@@ -18,7 +19,7 @@ from lansly.projects.consts import (
     Marketplace,
 )
 from lansly.projects.dto import ProjectLinks
-from lansly.projects.models import Project, ProjectCategory
+from lansly.projects.models import Project
 from lansly.subscriptions.dto import SubscriptionInfoDTO
 from lansly.subscriptions.models import PlanSlug
 
@@ -122,18 +123,27 @@ def onboarding_complete_message(
     )
 
 
-def menu_message(follow_categories: list[ProjectCategory]) -> str:
-    follow_categories_str = "\n".join(
-        f"• {cat.title}" for cat in follow_categories
-    )
-    if not follow_categories:
-        follow_categories_str = "• Нет отслеживаемых категорий"
+def menu_message(follow_counts: list[SourceCategoryFollowCountDTO]) -> str:
+    if any(item.followed_count > 0 for item in follow_counts):
+        sources = "\n".join(
+            f"• {MARKETPLACE_LABELS[item.source]} - "
+            + (
+                str(item.followed_count)
+                if item.followed_count > 0
+                else "не настроено"
+            )
+            for item in follow_counts
+        )
+        monitoring_text = f"<b>📂 Категории для мониторинга:</b>\n{sources}"
+    else:
+        monitoring_text = (
+            "📂 Выберите категории, чтобы получать новые проекты."
+        )
     return (
         "🏠 <b>Главное меню Lansly</b>\n\n"
-        "⚡ <b>Lansly</b> отслеживает новые проекты на бирже <b>Kwork</b> "
-        "и присылает подходящие задания автоматически.\n\n"
-        "<b>📂 Отслеживаемые категории:</b>\n"
-        f"{follow_categories_str}\n\n"
+        "⚡ <b>Lansly</b> отслеживает новые проекты "
+        "на kwork.ru и fl.ru с учётом ваших настроек.\n\n"
+        f"{monitoring_text}\n\n"
         "⚙️ Используйте меню ниже для управления настройками"
     )
 

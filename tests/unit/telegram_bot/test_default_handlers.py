@@ -20,7 +20,8 @@ from lansly.apps.telegram_bot.messages import (
 )
 from lansly.apps.telegram_bot.states import OnboardingState
 from lansly.auth.telegram_auth import TelegramAuthResultDTO
-from lansly.projects.models import ProjectCategory
+from lansly.preferences.dto import SourceCategoryFollowCountDTO
+from lansly.projects.consts import Marketplace
 
 # Start handler tests
 
@@ -35,7 +36,7 @@ async def test_start_handler_new_user(
     assert isinstance(sent, SendMessage)
     assert sent.text == onboarding_start_message()
     assert sent.reply_markup == build_onboarding_marketplaces_kbd()
-    assert fake_follow_service.get_followed_categories_calls == 0
+    assert fake_follow_service.follow_counts_calls == 0
 
 
 @pytest.mark.parametrize(
@@ -60,12 +61,12 @@ async def test_start_handler_existing_user(
 
     sent = bot_client.bot.sent_methods[0]
     assert isinstance(sent, SendMessage)
-    assert sent.text == menu_message([])
+    assert sent.text == menu_message(fake_follow_service.follow_counts)
     assert sent.reply_markup == build_main_menu_kbd(
         is_pro=is_pro,
         is_admin=is_admin,
     )
-    assert fake_follow_service.get_followed_categories_calls == 1
+    assert fake_follow_service.follow_counts_calls == 1
 
 
 @pytest.mark.asyncio
@@ -91,7 +92,7 @@ async def test_start_handler_resets_fsm_before_onboarding(
 
 
 @pytest.mark.asyncio
-async def test_start_handler_existing_user_with_categories(
+async def test_start_handler_existing_user_with_follow_counts(
     bot_client: BotClient,
     fake_auth: FakeTelegramAuth,
     fake_follow_service: FakeFollowService,
@@ -102,17 +103,23 @@ async def test_start_handler_existing_user_with_categories(
         is_pro=False,
         is_admin=False,
     )
-    categories = [
-        ProjectCategory(id=uuid7(), external_id=1, title="Python"),
-        ProjectCategory(id=uuid7(), external_id=2, title="Backend"),
+    follow_counts = [
+        SourceCategoryFollowCountDTO(
+            source=Marketplace.KWORK,
+            followed_count=12,
+        ),
+        SourceCategoryFollowCountDTO(
+            source=Marketplace.FL,
+            followed_count=26,
+        ),
     ]
-    fake_follow_service.categories = categories
+    fake_follow_service.follow_counts = follow_counts
     await bot_client.send_message(text="/start")
 
     sent = bot_client.bot.sent_methods[0]
     assert isinstance(sent, SendMessage)
-    assert sent.text == menu_message(categories)
-    assert fake_follow_service.get_followed_categories_calls == 1
+    assert sent.text == menu_message(follow_counts)
+    assert fake_follow_service.follow_counts_calls == 1
 
 
 @pytest.mark.asyncio
