@@ -9,12 +9,14 @@ wheels/
 # Virtual environments
 .venv
 
-
 .env
-
 
 .ruff_cache
 .pytest_cache
+
 .playwright-mcp
 .agents
 .codex
+
+
+docs/
