@@ -1,3 +1,4 @@
+# ruff: noqa: PLR2004
 from uuid import UUID, uuid7
 
 import pytest
@@ -19,7 +20,7 @@ def category_service(
 ) -> ProjectCategoryService:
     return ProjectCategoryService(
         gateway=category_gateway,
-        marketplace_clients=[marketplace_client],
+        clients=[marketplace_client],
         transaction_manager=txn,
     )
 
@@ -45,6 +46,8 @@ async def test_import_creates_new_categories_and_subcategories(
     marketplace_client: FakeMarketPlaceClient,
     txn: FakeTransactionManager,
 ):
+    # Проверяет создание корневых категорий и подкатегорий с внутренними UUID,
+    # связями с родителями и фиксацией транзакции.
     marketplace_client.categories = [
         category(
             "1",
@@ -88,6 +91,8 @@ async def test_import_reuses_existing_ids(
     category_gateway: FakeProjectCategoryGateway,
     marketplace_client: FakeMarketPlaceClient,
 ):
+    # Проверяет повторное использование ID существующей категории и привязку
+    # новой подкатегории к этому ID.
     existing_id = uuid7()
     category_gateway.existing = [
         ProjectCategory(
@@ -123,6 +128,7 @@ async def test_import_skips_categories_without_title(
     category_gateway: FakeProjectCategoryGateway,
     marketplace_client: FakeMarketPlaceClient,
 ):
+    # Проверяет пропуск корневых категорий и подкатегорий с пустыми названиями.
     marketplace_client.categories = [
         MarketplaceCategory(id="1", source=Marketplace.KWORK, title=""),
         MarketplaceCategory(
@@ -150,6 +156,7 @@ async def test_import_handles_category_without_subcategories(
     category_gateway: FakeProjectCategoryGateway,
     marketplace_client: FakeMarketPlaceClient,
 ):
+    # Проверяет импорт категории без подкатегорий как корневой записи.
     marketplace_client.categories = [category("1", "Разработка")]
 
     await category_service.import_categories()
@@ -159,12 +166,14 @@ async def test_import_handles_category_without_subcategories(
 
 
 @pytest.mark.asyncio
-async def test_import_empty_list_commits_without_categories(
+async def test_import_empty_list_does_not_commit(
     category_service: ProjectCategoryService,
     category_gateway: FakeProjectCategoryGateway,
     marketplace_client: FakeMarketPlaceClient,
     txn: FakeTransactionManager,
 ):
+    # Проверяет, что пустой ответ клиента не вызывает сохранение категорий и
+    # фиксацию транзакции.
     marketplace_client.categories = []
 
     await category_service.import_categories()
@@ -181,6 +190,8 @@ async def test_import_skips_duplicate_category_ids(
     category_gateway: FakeProjectCategoryGateway,
     marketplace_client: FakeMarketPlaceClient,
 ):
+    # Проверяет состав внешних ID при повторении одной подкатегории у разных
+    # родителей.
     marketplace_client.categories = [
         category(
             "1",
@@ -213,6 +224,8 @@ async def test_import_categories_from_multiple_sources(
     category_gateway: FakeProjectCategoryGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет отдельное сохранение категорий каждой площадки за одну
+    # транзакцию.
     kwork = FakeMarketPlaceClient(
         categories=[
             category("k1", "KWORK Cat", source=Marketplace.KWORK),
@@ -242,6 +255,8 @@ async def test_import_categories_from_multiple_sources(
 async def test_same_external_id_different_sources_no_collision(
     category_gateway: FakeProjectCategoryGateway,
 ):
+    # Проверяет, что при сведении импортированных категорий в словарь по
+    # внешнему ID последней остаётся категория FL.ru.
     kwork = FakeMarketPlaceClient(
         categories=[
             category("1", "KWORK Design", source=Marketplace.KWORK),
@@ -271,6 +286,8 @@ async def test_same_external_id_different_sources_no_collision(
 async def test_skips_duplicates_within_same_source(
     category_gateway: FakeProjectCategoryGateway,
 ):
+    # Проверяет набор внешних ID после импорта повторяющейся подкатегории в
+    # пределах одной площадки.
     kwork = FakeMarketPlaceClient(
         categories=[
             category(
@@ -297,7 +314,7 @@ async def test_skips_duplicates_within_same_source(
     )
     service = ProjectCategoryService(
         gateway=category_gateway,
-        marketplace_clients=[kwork],
+        clients=[kwork],
         transaction_manager=FakeTransactionManager(),
     )
 

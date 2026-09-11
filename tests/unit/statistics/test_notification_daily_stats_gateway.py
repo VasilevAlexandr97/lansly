@@ -36,6 +36,8 @@ def compile_string(stmt) -> str:
 
 
 def test_day_range_uses_utc_day_bounds():
+    # Проверяет, что границы дня уведомлений соответствуют полуночи указанной и
+    # следующей даты по UTC.
     start, end = SANotificationDailyStatsGateway._day_range(DAY)
     assert start == DAY_START
     assert end == DAY_END
@@ -43,6 +45,8 @@ def test_day_range_uses_utc_day_bounds():
 
 @pytest.mark.asyncio
 async def test_compute_day_runs_two_single_table_queries_no_cross_join():
+    # Проверяет отдельные запросы к таблицам личных и канальных уведомлений и
+    # преобразование двух счётчиков в метрики.
     gateway = SANotificationDailyStatsGateway(
         session=_RecordingSession(results=[5, 3]),
     )
@@ -59,13 +63,18 @@ async def test_compute_day_runs_two_single_table_queries_no_cross_join():
     assert rows == [
         MetricRow(DAY, DailyMetricName.NOTIFICATIONS_COUNT, ALL_DIMENSION, 5),
         MetricRow(
-            DAY, DailyMetricName.CHANNEL_NOTIFICATIONS_COUNT, ALL_DIMENSION, 3,
+            DAY,
+            DailyMetricName.CHANNEL_NOTIFICATIONS_COUNT,
+            ALL_DIMENSION,
+            3,
         ),
     ]
 
 
 @pytest.mark.asyncio
 async def test_earliest_queries_each_table_separately():
+    # Проверяет отдельный поиск минимальной даты в каждой таблице уведомлений и
+    # возврат даты из непустой таблицы.
     gateway = SANotificationDailyStatsGateway(
         session=_RecordingSession(results=[dt_type(2026, 8, 5), None]),
     )
@@ -89,6 +98,8 @@ async def test_earliest_queries_each_table_separately():
 
 @pytest.mark.asyncio
 async def test_earliest_returns_none_when_both_tables_empty():
+    # Проверяет возврат None для самой ранней даты, если обе таблицы
+    # уведомлений пусты.
     gateway = SANotificationDailyStatsGateway(
         session=_RecordingSession(results=[None, None]),
     )
@@ -97,6 +108,8 @@ async def test_earliest_returns_none_when_both_tables_empty():
 
 @pytest.mark.asyncio
 async def test_earliest_uses_min_when_one_table_empty():
+    # Проверяет возврат даты первого канального уведомления, когда личных
+    # уведомлений нет.
     gateway = SANotificationDailyStatsGateway(
         session=_RecordingSession(results=[None, dt_type(2026, 8, 3)]),
     )

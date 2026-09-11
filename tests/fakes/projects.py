@@ -66,7 +66,11 @@ class FakeProjectGateway:
         external_ids: list[str],
         source: str,
     ) -> set[str]:
-        return set(external_ids) - self.existing_external_ids
+        return (
+            set(external_ids)
+            - self.existing_external_ids
+            - {p.external_id for p in self.bulk_inserted if p.source == source}
+        )
 
 
 class FakeCustomerGateway:
@@ -91,17 +95,19 @@ class FakeMarketPlaceClient:
         self.get_categories_calls = 0
         self.get_projects_calls: list[dict] = []
 
+    async def get_project(self, project_id: str) -> MarketplaceProject | None:
+        return next((p for p in self.projects if p.id == project_id), None)
+
     async def get_categories(self) -> list[MarketplaceCategory]:
         self.get_categories_calls += 1
         return self.categories
 
     async def get_projects(
         self,
-        categories_ids: list[int | str],
         page: int = 1,
     ) -> list[MarketplaceProject]:
         self.get_projects_calls.append(
-            {"categories_ids": categories_ids, "page": page},
+            {"page": page},
         )
         return self.projects
 

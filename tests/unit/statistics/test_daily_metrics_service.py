@@ -44,6 +44,8 @@ async def test_compute_for_day_combines_project_and_notification_rows(
     daily_metrics_gateway: FakeDailyMetricsGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет замену метрик за указанный день объединёнными данными проектов
+    # и уведомлений с фиксацией транзакции.
     project_rows = [
         make_row(),
         make_row(metric=DailyMetricName.PROJECTS_SUM_PRICE),
@@ -73,6 +75,8 @@ async def test_compute_for_day_deletes_even_without_rows(
     daily_metrics_gateway: FakeDailyMetricsGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет удаление прежних метрик дня и фиксацию транзакции, даже если
+    # новые расчёты вернули пустые списки.
     await service.compute_for_day(DAY)
 
     assert project_stats_gateway.compute_day_calls == [DAY]
@@ -92,6 +96,8 @@ async def test_compute_yesterday_uses_previous_utc_day(
     txn: FakeTransactionManager,
     monkeypatch,
 ):
+    # Проверяет, что расчёт за вчера обрабатывает предыдущий календарный день
+    # по UTC.
     monkeypatch.setattr("lansly.statistics.services.datetime", FrozenDatetime)
 
     await service.compute_yesterday()
@@ -112,6 +118,8 @@ async def test_recompute_all_noop_without_data(
     daily_metrics_gateway: FakeDailyMetricsGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет, что при отсутствии исходных дат полный пересчёт не запускает
+    # расчёты, не меняет метрики и не фиксирует транзакцию.
     project_stats_gateway.earliest_date = None
     notification_stats_gateway.earliest_notification_date = None
 
@@ -136,6 +144,8 @@ async def test_recompute_all_noop_when_earliest_is_after_end(
     txn: FakeTransactionManager,
     monkeypatch,
 ):
+    # Проверяет, что полный пересчёт не меняет метрики, если первые данные
+    # появились позже последнего дня расчёта.
     monkeypatch.setattr("lansly.statistics.services.datetime", FrozenDatetime)
     project_stats_gateway.earliest_date = dt_type(2026, 8, 15)
     notification_stats_gateway.earliest_notification_date = None
@@ -158,6 +168,8 @@ async def test_recompute_all_computes_each_day_and_commits_once(
     txn: FakeTransactionManager,
     monkeypatch,
 ):
+    # Проверяет расчёт каждого дня от первой даты до вчера, однократную очистку
+    # метрик и общую фиксацию транзакции.
     monkeypatch.setattr("lansly.statistics.services.datetime", FrozenDatetime)
     project_stats_gateway.earliest_date = dt_type(2026, 8, 10)
     notification_stats_gateway.earliest_notification_date = None
@@ -188,10 +200,14 @@ async def test_recompute_all_uses_notification_earliest_when_project_is_none(
     txn: FakeTransactionManager,
     monkeypatch,
 ):
+    # Проверяет, что при отсутствии проектов полный пересчёт начинается с даты
+    # первого уведомления.
     monkeypatch.setattr("lansly.statistics.services.datetime", FrozenDatetime)
     project_stats_gateway.earliest_date = None
     notification_stats_gateway.earliest_notification_date = dt_type(
-        2026, 8, 10,
+        2026,
+        8,
+        10,
     )
 
     await service.recompute_all()
@@ -218,10 +234,14 @@ async def test_recompute_all_uses_min_of_project_and_notification_earliest(
     txn: FakeTransactionManager,
     monkeypatch,
 ):
+    # Проверяет, что полный пересчёт начинается с более ранней из дат первого
+    # проекта и первого уведомления.
     monkeypatch.setattr("lansly.statistics.services.datetime", FrozenDatetime)
     project_stats_gateway.earliest_date = dt_type(2026, 8, 12)
     notification_stats_gateway.earliest_notification_date = dt_type(
-        2026, 8, 10,
+        2026,
+        8,
+        10,
     )
 
     await service.recompute_all()
@@ -248,6 +268,8 @@ async def test_recompute_all_combines_project_and_notification_rows(
     txn: FakeTransactionManager,
     monkeypatch,
 ):
+    # Проверяет объединение метрик проектов и уведомлений при сохранении
+    # каждого дня полного пересчёта.
     monkeypatch.setattr("lansly.statistics.services.datetime", FrozenDatetime)
     project_stats_gateway.earliest_date = dt_type(2026, 8, 10)
     project_stats_gateway.compute_day_rows = [

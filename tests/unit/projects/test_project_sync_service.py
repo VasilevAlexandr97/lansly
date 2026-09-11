@@ -109,6 +109,8 @@ async def test_sync_without_lock_collects_and_saves_projects(
     txn: FakeTransactionManager,
     lock_manager: FakeDistributedLockManager,
 ):
+    # Проверяет сбор и сохранение проектов без обращения к блокировке с
+    # возвратом ID и фиксацией транзакции.
     """Интеграция без lock собирает и сохраняет проекты напрямую."""
     collector = FakeProjectCollector(
         source=Marketplace.KWORK,
@@ -136,6 +138,8 @@ async def test_sync_with_acquired_lock_collects_and_saves_projects(
     txn: FakeTransactionManager,
     lock_manager: FakeDistributedLockManager,
 ):
+    # Проверяет сбор и сохранение проектов при полученной блокировке, передачу
+    # её настроек и выход из контекста.
     """При полученном lock синхронизация выполняется с его настройками."""
     collector = FakeProjectCollector(
         source=Marketplace.FL,
@@ -185,6 +189,8 @@ async def test_sync_with_busy_lock_does_not_start_collector(
     txn: FakeTransactionManager,
     lock_manager: FakeDistributedLockManager,
 ):
+    # Проверяет, что занятая блокировка приводит к пустому результату без
+    # запуска сборщика и сохранения данных.
     """При занятом lock синхронизация не запускает collector."""
     lock_manager.acquired = False
     collector = FakeProjectCollector(
@@ -225,6 +231,8 @@ async def test_sync_raises_when_integration_not_found(
     sync_service: ProjectSyncService,
     project_gateway: FakeProjectGateway,
 ):
+    # Проверяет, что отсутствующая интеграция вызывает ошибку до вставки
+    # проектов.
     """Для незарегистрированного источника выбрасывается исключение."""
     with pytest.raises(MarketplaceIntegrationNotFoundError):
         await sync_service.sync(Marketplace.KWORK)
@@ -244,6 +252,8 @@ async def test_saves_new_projects_with_mapped_categories(
     project_gateway: FakeProjectGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет сохранение полей новых проектов, сопоставление категорий с
+    # внутренними ID и очистку HTML в описании.
     """Новые проекты сохраняются с категориями и исходными полями."""
     design = make_category("1", "Дизайн")
     dev = make_category("2", "Разработка")
@@ -291,6 +301,8 @@ async def test_empty_projects_do_not_access_gateways(
     customer_gateway: FakeCustomerGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет возврат пустого списка без сохранения проектов, заказчиков и
+    # фиксации транзакции при пустом входе.
     """Пустой batch не вызывает gateway и не открывает транзакцию."""
     result = await sync_service._save_projects(
         projects=[],
@@ -310,6 +322,8 @@ async def test_does_not_insert_when_all_projects_exist(
     customer_gateway: FakeCustomerGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет, что уже существующие проекты не вставляются повторно и не
+    # вызывают сохранение заказчиков.
     """Уже существующие проекты и их заказчики не сохраняются повторно."""
     project_gateway.existing_external_ids = {"p1", "p2"}
 
@@ -334,6 +348,8 @@ async def test_inserts_only_missing_projects_and_customers(
     customer_gateway: FakeCustomerGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет, что из смешанного списка сохраняются только новые проекты и их
+    # заказчики.
     """Из смешанного batch сохраняются только новые проекты и заказчики."""
     project_gateway.existing_external_ids = {"p1"}
 
@@ -366,6 +382,8 @@ async def test_missing_category_is_saved_as_none(
     project_gateway: FakeProjectGateway,
     caplog: pytest.LogCaptureFixture,
 ):
+    # Проверяет сохранение проектов с отсутствующей или неизвестной категорией
+    # без связи с ней и запись предупреждения.
     """Проект с неизвестной категорией сохраняется без связи с ней."""
     with caplog.at_level(logging.WARNING):
         result = await sync_service._save_projects(
@@ -394,6 +412,8 @@ async def test_rejects_projects_from_another_source(
     customer_gateway: FakeCustomerGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет отклонение проектов другой площадки до сохранения данных и
+    # фиксации транзакции.
     """Проекты другого источника отклоняются до сохранения данных."""
     customer = make_customer("c1")
 
@@ -420,6 +440,8 @@ async def test_deduplicates_projects_by_external_id(
     sync_service: ProjectSyncService,
     project_gateway: FakeProjectGateway,
 ):
+    # Проверяет, что проекты с одинаковым внешним ID сохраняются один раз с
+    # данными первого вхождения.
     """Дубли проектов объединяются по external_id с правилом first wins."""
     await sync_service._save_projects(
         projects=[
@@ -446,6 +468,8 @@ async def test_deduplicates_customers_across_projects(
     sync_service: ProjectSyncService,
     customer_gateway: FakeCustomerGateway,
 ):
+    # Проверяет однократное сохранение заказчика, указанного в нескольких
+    # проектах.
     """Один заказчик из нескольких проектов сохраняется один раз."""
     customer = make_customer("c1")
 
@@ -468,6 +492,8 @@ async def test_maps_saved_customer_id_to_project(
     customer_gateway: FakeCustomerGateway,
     project_gateway: FakeProjectGateway,
 ):
+    # Проверяет сохранение данных заказчика и запись его внутреннего ID в
+    # связанный проект.
     """Сохранённый UUID заказчика записывается во внешний ключ проекта."""
     customer = make_customer("c1", username="ivan")
 
@@ -492,6 +518,8 @@ async def test_project_without_customer_has_null_customer_id(
     customer_gateway: FakeCustomerGateway,
     project_gateway: FakeProjectGateway,
 ):
+    # Проверяет сохранение проекта без заказчика с customer_id=None без вызова
+    # сохранения заказчиков.
     """Проект без заказчика сохраняется с customer_id=None."""
     await sync_service._save_projects(
         projects=[
@@ -509,6 +537,8 @@ async def test_multiple_distinct_customers_are_saved(
     sync_service: ProjectSyncService,
     customer_gateway: FakeCustomerGateway,
 ):
+    # Проверяет сохранение разных заказчиков из одного списка проектов за один
+    # вызов шлюза.
     """Разные заказчики одного batch сохраняются одной bulk-операцией."""
     first = make_customer("c1", username="alice")
     second = make_customer("c2", username="bob")
@@ -548,5 +578,7 @@ def test_normalizes_project_description(
     description: str,
     expected: str,
 ):
+    # Проверяет очистку описания от HTML, декодирование сущностей и сокращение
+    # лишних пробелов и переносов строк.
     """Описание очищается от HTML и лишних пробелов и переносов."""
     assert sync_service._normalize_description(description) == expected
