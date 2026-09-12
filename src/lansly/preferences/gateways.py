@@ -5,7 +5,6 @@ from sqlalchemy import and_, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import functions
 
 from lansly.preferences.exceptions import (
@@ -111,19 +110,77 @@ class UserCategoryFollowGateway:
             return 0
         return result
 
-    async def get_follows_with_category(
+    async def get_followed_category_counts_by_source(
         self,
         user_id: UUID,
-    ) -> list[UserCategoryFollow]:
+    ) -> dict[str, int]:
         stmt = (
-            select(UserCategoryFollow)
-            .options(joinedload(UserCategoryFollow.category))
-            .where(
-                UserCategoryFollow.user_id == user_id,
-                UserCategoryFollow.is_active.is_(True),
+            select(
+                ProjectCategory.source,
+                functions.count(UserCategoryFollow.category_id),
             )
+            .select_from(ProjectCategory)
+            .outerjoin(
+                UserCategoryFollow,
+                and_(
+                    UserCategoryFollow.category_id == ProjectCategory.id,
+                    UserCategoryFollow.user_id == user_id,
+                    UserCategoryFollow.is_active.is_(True),
+                ),
+            )
+            .group_by(ProjectCategory.source)
         )
-        return list(await self.session.scalars(stmt))
+        result = await self.session.execute(stmt)
+        return dict(result.tuples().all())
+
+
+    async def get_directions_with_follow_counts(
+        self,
+        user_id: UUID,
+        source: str,
+    ) -> list[tuple[UUID, str, int, int]]:
+        counts = (
+            select(
+                ProjectCategory.parent_id,
+                functions.count(UserCategoryFollow.user_id).label(
+                    "followed_count",
+                ),
+                functions.count(ProjectCategory.id).label("total_count"),
+            )
+            .outerjoin(
+                UserCategoryFollow,
+                and_(
+                    ProjectCategory.id == UserCategoryFollow.category_id,
+                    UserCategoryFollow.user_id == user_id,
+                    UserCategoryFollow.is_active.is_(True),
+                ),
+            )
+            .where(
+                ProjectCategory.source == source,
+                ProjectCategory.parent_id.is_not(None),
+            )
+            .group_by(ProjectCategory.parent_id)
+        ).subquery()
+
+        stmt = (
+            select(
+                ProjectCategory.id,
+                ProjectCategory.title,
+                functions.coalesce(counts.c.followed_count, 0),
+                functions.coalesce(counts.c.total_count, 0),
+            )
+            .outerjoin(
+                counts,
+                ProjectCategory.id == counts.c.parent_id,
+            )
+            .where(
+                ProjectCategory.source == source,
+                ProjectCategory.parent_id.is_(None),
+            )
+            .order_by(ProjectCategory.title)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.tuples().all())
 
     async def get_subcategories_with_follow_status(
         self,
@@ -299,9 +356,8 @@ class SAUserPriceFilterGateway(UserPriceFilterGateway):
         await self.session.execute(stmt)
 
     async def get_by_user_id(self, user_id: UUID) -> UserPriceFilter | None:
-        stmt = (
-            select(UserPriceFilter)
-            .where(UserPriceFilter.user_id == user_id)
+        stmt = select(UserPriceFilter).where(
+            UserPriceFilter.user_id == user_id,
         )
         return await self.session.scalar(stmt)
 

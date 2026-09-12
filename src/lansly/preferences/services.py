@@ -17,6 +17,9 @@ from lansly.preferences.consts import (
 from lansly.preferences.dto import (
     CategoryWithFollowedStatusDTO,
     CountStopWordsDTO,
+    DirectionWithFollowCountsDTO,
+    FollowCategoryDTO,
+    SourceCategoryFollowCountDTO,
     StopWordsDTO,
     SubcategoriesWithFollowStatusDTO,
 )
@@ -42,8 +45,8 @@ from lansly.preferences.validators import (
     freelancer_profile_about_validator,
     price_filter_range_validator,
 )
+from lansly.projects.consts import Marketplace
 from lansly.projects.exceptions import ProjectCategoryNotFoundError
-from lansly.projects.models import ProjectCategory
 from lansly.subscriptions.interfaces import (
     SubscriptionChecker,
 )
@@ -78,6 +81,42 @@ class UserCategoryFollowService:
             for row in rows
         ]
 
+    async def get_followed_category_counts_by_source(
+        self,
+    ) -> list[SourceCategoryFollowCountDTO]:
+        user_id = await self.id_provider.get_current_user_id()
+        counts = (
+            await self.follow_gateway.get_followed_category_counts_by_source(
+                user_id,
+            )
+        )
+        return [
+            SourceCategoryFollowCountDTO(
+                source=source,
+                followed_count=counts.get(source, 0),
+            )
+            for source in Marketplace
+        ]
+
+    async def get_directions_with_follow_counts(
+        self,
+        source: str,
+    ) -> list[DirectionWithFollowCountsDTO]:
+        user_id = await self.id_provider.get_current_user_id()
+        rows = await self.follow_gateway.get_directions_with_follow_counts(
+            user_id=user_id,
+            source=source,
+        )
+        return [
+            DirectionWithFollowCountsDTO(
+                id=direction_id,
+                title=title,
+                followed_count=followed_count,
+                total_count=total_count,
+            )
+            for direction_id, title, followed_count, total_count in rows
+        ]
+
     async def get_subcategories_with_follow_status(
         self,
         parent_id: UUID,
@@ -88,34 +127,24 @@ class UserCategoryFollowService:
             parent_id=parent_id,
         )
 
-    async def _get_followed_categories(
-        self,
-        user_id: UUID,
-    ) -> list[ProjectCategory]:
-        follows = await self.follow_gateway.get_follows_with_category(user_id)
-        return [follow.category for follow in follows]
-
-    async def get_followed_categories(self) -> list[ProjectCategory]:
-        user_id = await self.id_provider.get_current_user_id()
-        return await self._get_followed_categories(user_id)
-
-    async def unfollow_all_categories(self) -> list[ProjectCategory]:
+    async def unfollow_all_categories(self):
         user_id = await self.id_provider.get_current_user_id()
         await self.follow_gateway.deactivate_all(user_id)
         await self.transaction_manager.commit()
-        return await self._get_followed_categories(user_id)
 
     async def _get_user_limit_and_available(self, user_id: UUID) -> int:
         is_pro_user = await self.subscription_checker.is_pro_user(user_id)
         return MAX_FREE_CATEGORIES if not is_pro_user else MAX_PRO_CATEGORIES
 
+    # TODO: все методы подписки и отписки категорий,
+    # добавить защиту от race condition
     async def toggle_category_follow(
         self,
         category_id: UUID,
     ) -> SubcategoriesWithFollowStatusDTO:
         user_id = await self.id_provider.get_current_user_id()
         category = await self.follow_gateway.get_category(category_id)
-        if not category:
+        if category is None or category.parent_id is None:
             raise ProjectCategoryNotFoundError
         follow = await self.follow_gateway.get(
             user_id=user_id,
@@ -167,6 +196,52 @@ class UserCategoryFollowService:
         return SubcategoriesWithFollowStatusDTO(
             categories=subcategories,
             limit=limit,
+        )
+
+    async def follow_category(
+        self,
+        category_id: UUID,
+    ) -> FollowCategoryDTO:
+        user_id = await self.id_provider.get_current_user_id()
+
+        category = await self.follow_gateway.get_category(category_id)
+        if category is None or category.parent_id is None:
+            raise ProjectCategoryNotFoundError
+
+        follow = await self.follow_gateway.get(
+            user_id=user_id,
+            category_id=category_id,
+        )
+        if follow is not None and follow.is_active:
+            return FollowCategoryDTO(
+                category_id=category.id,
+                title=category.title,
+            )
+
+        limit = await self._get_user_limit_and_available(user_id)
+        followed_count = (
+            await self.follow_gateway.get_count_followed_categories(user_id)
+        )
+        if followed_count >= limit:
+            raise UserCategoryFollowLimitExceededError(limit=limit)
+
+        now = datetime.now(UTC)
+        if follow is not None:
+            follow.is_active = True
+            follow.updated_at = now
+        else:
+            follow = UserCategoryFollow(
+                user_id=user_id,
+                category_id=category_id,
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+            await self.follow_gateway.add(follow)
+        await self.transaction_manager.commit()
+        return FollowCategoryDTO(
+            category_id=category.id,
+            title=category.title,
         )
 
 

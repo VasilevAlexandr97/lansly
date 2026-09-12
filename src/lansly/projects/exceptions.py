@@ -25,3 +25,7 @@ class GenerationLimitExceededError(Exception):
         super().__init__(
             f"Generation limit exceeded: {limit}, is_pro: {is_pro}",
         )
+
+
+class MarketplaceIntegrationNotFoundError(Exception):
+    pass

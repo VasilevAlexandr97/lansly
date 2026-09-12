@@ -1,101 +1,131 @@
-from collections.abc import Generator
-
+# ruff: noqa: SLF001
 import pytest
+import pytest_asyncio
 
 from aiogram import Dispatcher, Router
 from aiogram.fsm.storage.memory import MemoryStorage
-from dishka import (
-    AsyncContainer,
-    Provider,
-    Scope,
-    make_async_container,
-    provide,
-)
+from dishka import Provider, Scope, make_async_container, provide
 from dishka.integrations.aiogram import setup_dishka
-from fakes.preferences import FakeFollowService
+from fakes.factories import category
+from fakes.infra import FakeTransactionManager
+from fakes.preferences import MonitoringFollowService
+from fakes.projects import FakeProjectCategoryGateway
 from fakes.telegram_auth import FakeTelegramAuth
 from fakes.telegram_bot import BotClient, FakeBot
 
-from lansly.apps.telegram_bot.handlers.default import router as default_router
+from lansly.apps.telegram_bot.handlers import (
+    category_settings,
+    default,
+    onboarding,
+)
 from lansly.auth.telegram_auth import TelegramAuth
+from lansly.common.dto import CurrentUser
 from lansly.preferences.services import UserCategoryFollowService
+from lansly.projects.consts import Marketplace
+from lansly.projects.services import ProjectCategoryService
 
 
 class HandlerTestProvider(Provider):
-    def __init__(
-        self,
-        auth: FakeTelegramAuth,
-        follow_service: FakeFollowService,
-    ):
+    def __init__(self, auth, follow, categories):
         super().__init__()
-        self.auth = auth
-        self.follow_service = follow_service
+        self.auth, self.follow, self.categories = auth, follow, categories
 
     @provide(scope=Scope.REQUEST, provides=TelegramAuth)
-    def get_auth(self) -> FakeTelegramAuth:
+    async def get_auth(self) -> FakeTelegramAuth:
         return self.auth
 
     @provide(scope=Scope.REQUEST, provides=UserCategoryFollowService)
-    def get_service(self) -> FakeFollowService:
-        return self.follow_service
+    async def get_follow(self) -> MonitoringFollowService:
+        return self.follow
+
+    @provide(scope=Scope.REQUEST)
+    async def get_categories(self) -> ProjectCategoryService:
+        return self.categories
+
+    @provide(scope=Scope.REQUEST)
+    async def get_user(self) -> CurrentUser:
+        result = self.auth.result
+        return CurrentUser(
+            id=result.user_id,
+            is_pro=result.is_pro,
+            is_admin=result.is_admin,
+        )
 
 
 @pytest.fixture
-def fake_auth() -> FakeTelegramAuth:
+def fake_auth():
     return FakeTelegramAuth()
 
 
 @pytest.fixture
-def fake_follow_service() -> FakeFollowService:
-    return FakeFollowService()
+def fake_follow_service():
+    return MonitoringFollowService()
 
 
 @pytest.fixture
-def container(
-    fake_auth: FakeTelegramAuth,
-    fake_follow_service: FakeFollowService,
-) -> AsyncContainer:
-    return make_async_container(
-        HandlerTestProvider(
-            auth=fake_auth,
-            follow_service=fake_follow_service,
-        ),
+def category_service(fake_follow_service):
+    cats = []
+    for source in Marketplace:
+        root = category(source=source)
+        child = category(
+            source=source,
+            parent_id=root.id,
+            external_id="logo",
+            title="Лого",
+        )
+        cats.extend([root, child])
+        fake_follow_service.directions[source] = [root]
+        fake_follow_service.categories[root.id] = [child]
+    return ProjectCategoryService(
+        [],
+        FakeProjectCategoryGateway(cats),
+        FakeTransactionManager(),
     )
 
 
+@pytest_asyncio.fixture
+async def container(fake_auth, fake_follow_service, category_service):
+    container = make_async_container(
+        HandlerTestProvider(fake_auth, fake_follow_service, category_service),
+    )
+    yield container
+    await container.close()
+
+
 @pytest.fixture
-def memory_storage() -> MemoryStorage:
+def memory_storage():
     return MemoryStorage()
 
 
-def include_routers(dp: Dispatcher):
-    dp.include_router(default_router)
+def isolated_router(source):
+    # Новый Router сохраняет регистрацию, не меняя роутеры приложения.
+    target = Router()
+    for name, observer in source.observers.items():
+        target.observers[name].handlers.extend(observer.handlers)
+        for filter_ in observer._handler.filters or []:
+            target.observers[name].filter(filter_.callback)
+    return target
 
 
-def detach_router(router: Router):
-    for child in router.sub_routers:
-        detach_router(child)
-
-    if router._parent_router is not None:  # noqa: SLF001
-        router._parent_router = None  # noqa: SLF001
-
-
-def detach_routers():
-    detach_router(default_router)
-
-
-@pytest.fixture
-def dp(
-    container: AsyncContainer,
-    memory_storage: MemoryStorage,
-) -> Generator[Dispatcher]:
-    dp = Dispatcher(storage=memory_storage)
-    include_routers(dp)
-    setup_dishka(container, dp)
-    yield dp
-    detach_routers()
+@pytest_asyncio.fixture
+async def dp(container, memory_storage):
+    dispatcher = Dispatcher(storage=memory_storage)
+    for module in (default, onboarding, category_settings):
+        dispatcher.include_router(isolated_router(module.router))
+    setup_dishka(container, dispatcher)
+    yield dispatcher
+    await dispatcher.fsm.close()
 
 
 @pytest.fixture
-def bot_client(dp: Dispatcher) -> BotClient:
+def bot_client(dp):
     return BotClient(dp, FakeBot())
+
+
+@pytest.fixture
+def state(bot_client):
+    return bot_client.dp.fsm.get_context(
+        bot=bot_client.bot,
+        chat_id=bot_client.chat_id,
+        user_id=bot_client.user.id,
+    )

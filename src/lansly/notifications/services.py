@@ -14,8 +14,9 @@ from lansly.apps.telegram_bot.keyboards import (
     build_subscription_activated_kbd,
 )
 from lansly.apps.telegram_bot.messages import (
+    flru_project_message,
     generating_proposal_failed_message,
-    project_message,
+    kwork_project_message,
 )
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.infra.telegram.telegram_notifier import TelegramNotifier
@@ -32,9 +33,13 @@ from lansly.preferences.gateways import (
     UserStopWordsGateway,
 )
 from lansly.preferences.interfaces import UserPriceFilterGateway
+from lansly.projects.consts import Marketplace
+from lansly.projects.dto import ProjectLinks
 from lansly.projects.exceptions import ProjectProposalNotFoundError
 from lansly.projects.gateways import ProjectProposalGateway
 from lansly.projects.interfaces import ProjectGateway
+from lansly.projects.models import Project
+from lansly.projects.urls import MarketplaceUrlBuilder
 from lansly.users.exceptions import UserNotFoundError
 from lansly.users.interfaces import UserGateway
 
@@ -42,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class ProjectNotificationService:
-    def __init__(
+    def __init__(  # noqa: PLR0917
         self,
         project_gateway: ProjectGateway,
         follow_gateway: UserCategoryFollowGateway,
@@ -52,8 +57,8 @@ class ProjectNotificationService:
         channel_notification_gateway: ChannelNotificationGateway,
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
+        url_builder: MarketplaceUrlBuilder,
         redis: Redis,
-        kwork_ref_id: int | None = None,
         channel_id: int | None = None,
     ):
         self.project_gateway = project_gateway
@@ -64,9 +69,9 @@ class ProjectNotificationService:
         self.channel_notification_gateway = channel_notification_gateway
         self.telegram_notifier = telegram_notifier
         self.transaction_manager = transaction_manager
+        self.url_builder = url_builder
         self.redis = redis
         self.lock = Lock(self.redis, "project_notification", timeout=600)
-        self.kwork_ref_id = kwork_ref_id
         self.channel_id = channel_id
 
     def _contains_stop_word(self, text: str, stop_words: list[str]) -> bool:
@@ -74,6 +79,17 @@ class ProjectNotificationService:
             return False
         text_lower = text.lower()
         return any(sw.lower() in text_lower for sw in stop_words)
+
+    def _get_project_message(
+        self,
+        project: Project,
+        links: ProjectLinks,
+    ) -> str:
+        if project.source == Marketplace.KWORK:
+            return kwork_project_message(project, links)
+        if project.source == Marketplace.FL:
+            return flru_project_message(project, links)
+        raise ValueError("Project source not supported")
 
     async def notify_new_projects(self, project_ids: list[UUID]):
         projects = await self.project_gateway.get_projects_by_ids(
@@ -122,16 +138,14 @@ class ProjectNotificationService:
                         ):
                             continue
                     try:
+                        project_links = self.url_builder.build_links(project)
                         await self.telegram_notifier.send_message(
                             chat_id=user.telegram_id,
-                            text=project_message(
+                            text=self._get_project_message(
                                 project,
-                                ref_id=self.kwork_ref_id,
+                                project_links,
                             ),
-                            keyboard=build_project_kbd(
-                                project,
-                                ref_id=self.kwork_ref_id,
-                            ),
+                            keyboard=build_project_kbd(project, project_links),
                         )
                         project_notifications.append(
                             ProjectNotification(
@@ -170,16 +184,14 @@ class ProjectNotificationService:
             if project.category_id is None:
                 continue
             try:
+                project_links = self.url_builder.build_links(project)
                 await self.telegram_notifier.send_message(
                     chat_id=self.channel_id,
-                    text=project_message(
-                        project=project,
-                        ref_id=self.kwork_ref_id,
+                    text=self._get_project_message(
+                        project,
+                        project_links,
                     ),
-                    keyboard=build_channel_project_kbd(
-                        project=project,
-                        ref_id=self.kwork_ref_id,
-                    ),
+                    keyboard=build_channel_project_kbd(project_links),
                 )
                 channel_notifications.append(
                     ChannelNotification(

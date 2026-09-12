@@ -1,11 +1,12 @@
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.methods import TelegramMethod
-from aiogram.types import Chat, Message, Update, User
+from aiogram.types import CallbackQuery, Chat, Message, Update, User
 
 
 class FakeBot(Bot):
@@ -103,38 +104,35 @@ class BotClient:
             state=state,
         )
 
-    # def _new_callback(
-    #     self,
-    #     message: Message,
-    #     button: InlineKeyboardButton,
-    # ) -> CallbackQuery:
-    #     if not button.callback_data:
-    #         raise ValueError("Button has no callback data")
-    #     return CallbackQuery(
-    #         id=str(uuid.uuid4()),
-    #         data=button.callback_data,
-    #         chat_instance="--",
-    #         from_user=self.user,
-    #         message=message,
-    #     )
-
-    # async def click(
-    #     self,
-    #     message: Message,
-    #     locator: InlineButtonLocator,
-    # ) -> str:
-    #     button = locator.find_button(message)
-    #     if not button:
-    #         raise ValueError(
-    #             f"No button matching {locator} found",
-    #         )
-
-    #     callback = self._new_callback(message, button)
-    #     await self.dp.feed_update(
-    #         self.bot,
-    #         Update(
-    #             update_id=self._new_update_id(),
-    #             callback_query=callback,
-    #         ),
-    #     )
-    #     return callback.id
+    async def click(
+        self,
+        callback_data: str,
+        *,
+        message: Message | None = None,
+    ) -> str:
+        if message is None:
+            message = Message(
+                message_id=self._new_message_id(),
+                date=datetime.now(UTC),
+                chat=self._new_chat(),
+                from_user=User(
+                    id=self.bot.id,
+                    is_bot=True,
+                    first_name="TestBot",
+                ),
+            )
+        callback = CallbackQuery(
+            id=str(uuid4()),
+            from_user=self.user,
+            chat_instance=str(message.chat.id),
+            message=message,
+            data=callback_data,
+        )
+        await self.dp.feed_update(
+            self.bot,
+            Update(
+                update_id=self._new_update_id(),
+                callback_query=callback,
+            ),
+        )
+        return callback.id

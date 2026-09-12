@@ -1,3 +1,4 @@
+import html
 import re
 
 from datetime import datetime
@@ -9,11 +10,22 @@ from lansly.preferences.consts import (
     MAX_LENGTH_FREELANCER_PROFILE,
     MAX_PRO_STOP_WORDS,
 )
+from lansly.preferences.dto import SourceCategoryFollowCountDTO
 from lansly.preferences.models import UserPriceFilter
-from lansly.projects.consts import MAX_FREE_GENERATIONS, MAX_PRO_GENERATIONS
-from lansly.projects.models import Project, ProjectCategory
+from lansly.projects.consts import (
+    MARKETPLACE_LABELS,
+    MAX_FREE_GENERATIONS,
+    MAX_PRO_GENERATIONS,
+    Marketplace,
+)
+from lansly.projects.dto import ProjectLinks
+from lansly.projects.models import Project
 from lansly.subscriptions.dto import SubscriptionInfoDTO
 from lansly.subscriptions.models import PlanSlug
+
+
+def truncate_project_description(text: str, length: int = 3000) -> str:
+    return text[:length] + "..." if len(text) > length else text
 
 
 def make_hashtag(title: str) -> str:
@@ -25,69 +37,158 @@ def make_hashtag(title: str) -> str:
     return f"#{hashtag}"
 
 
-def project_message(project: Project, ref_id: int | None = None) -> str:
-    project_link = f"https://kwork.ru/projects/{project.external_id}"
-    if ref_id is not None:
-        project_link += f"?ref={ref_id}"
-
+def kwork_project_message(project: Project, links: ProjectLinks) -> str:
     customer_block = ""
     if project.customer:
+        username = project.customer.username
         customer_block = (
             f"👤 Заказчик\n"
-            f"• Проектов: {project.customer.user_projects_count or 0}\n"
-            f"• Нанято: {project.customer.user_hired_percent or 0}%\n"
+            f"• Проектов: {project.customer.user_projects_count}\n"
+            f"• Нанято: {project.customer.user_hired_percent}%\n"
+            f"• Профиль: <a href='{links.customer_url}'>{username}</a>\n\n"
         )
-        username = project.customer.username
-        if username is not None:
-            profile_link = f"https://kwork.ru/user/{username}"
-            customer_block += (
-                f"• Профиль: <a href='{profile_link}'>{username}</a>\n"
-            )
-
     return (
-        "🔔 Новый проект\n\n"
+        f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.KWORK]}</b>\n\n"
         f"📂 {project.category.title}\n\n"
-        f"📌 <a href='{project_link}'><b>{project.title}</b></a>\n\n"
+        f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
         f"💰 Бюджет\n"
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
-        f"{customer_block}\n"
-        f"📝 {project.description}\n\n"
+        f"{customer_block}"
+        f"📝 {truncate_project_description(project.description)}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
-        f"🔗 <a href='{project_link}'>Ссылка на проект</a>"
+        f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
     )
 
 
-def start_message() -> str:
+def flru_project_message(project: Project, links: ProjectLinks) -> str:
+    budget = (
+        f"{project.price} ₽"
+        if project.has_exact_budget
+        else "по договорённости"
+    )
+
     return (
-        "👋 Добро пожаловать в <b>Lansly</b>\n\n"
-        "Мониторю проекты на бирже Kwork и присылаю новые мгновенно.\n\n"
-        "⚡ Что я делаю:\n"
-        "• Мониторинг новых проектов\n"
-        "• Мгновенные уведомления\n"
-        "• Генерация автоматических откликов\n\n"
-        "📂 Настрой категории — и я начну мониторинг"
+        f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.FL]}</b>\n\n"
+        f"📂 {project.category.title}\n\n"
+        f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
+        f"💰 Бюджет: {budget}\n\n"
+        f"📝 {truncate_project_description(project.description)}\n\n"
+        f"{make_hashtag(project.category.title)}\n\n"
+        f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
     )
 
 
-def menu_message(follow_categories: list[ProjectCategory]) -> str:
-    follow_categories_str = "\n".join(
-        f"• {cat.title}" for cat in follow_categories
+def onboarding_start_message() -> str:
+    return (
+        "👋 Привет! Я <b>Lansly</b> — инструмент, который помогает фрилансерам"
+        " находить больше заказов и быстрее на них откликаться.\n\n"
+        "🔔 Отслеживаю новые проекты на <b>kwork.ru</b> и <b>fl.ru</b> "
+        "и сразу присылаю подходящие в Telegram.\n"
+        "✨ Помогаю подготовить персональный отклик с помощью ИИ.\n\n"
+        "Чтобы запустить мониторинг, выберите биржу, "
+        "а затем нужную категорию.\n\n"
+        "<b>Где будем искать заказы?</b>"
     )
-    if not follow_categories:
-        follow_categories_str = "• Нет отслеживаемых категорий"
+
+
+def onboarding_select_direction_message(marketplace: Marketplace) -> str:
+    return (
+        f"<b>{MARKETPLACE_LABELS[marketplace]} · Шаг 1 из 2</b>\n\n"
+        "Выберите направление, в котором ищете заказы."
+    )
+
+
+def onboarding_select_category_message(
+    marketplace: Marketplace,
+    direction: str,
+) -> str:
+    return (
+        f"<b>{MARKETPLACE_LABELS[marketplace]} › "
+        f"{html.escape(direction)} · Шаг 2 из 2</b>\n\n"
+        "Выберите категорию — по ней будут приходить новые заказы.\n\n"
+        "На бесплатном тарифе доступна 1 категория."
+    )
+
+
+def onboarding_complete_message(
+    marketplace: Marketplace,
+    category: str,
+) -> str:
+    return (
+        "✅ Мониторинг запущен\n\n"
+        f"Буду присылать новые проекты с {MARKETPLACE_LABELS[marketplace]} "
+        f"в категории «{html.escape(category)}».\n\n"
+        "🏠 Главное меню Lansly"
+    )
+
+
+def menu_message(follow_counts: list[SourceCategoryFollowCountDTO]) -> str:
+    if any(item.followed_count > 0 for item in follow_counts):
+        sources = "\n".join(
+            f"• {MARKETPLACE_LABELS[item.source]} - "
+            + (
+                str(item.followed_count)
+                if item.followed_count > 0
+                else "не настроено"
+            )
+            for item in follow_counts
+        )
+        monitoring_text = f"<b>📂 Категории для мониторинга:</b>\n{sources}"
+    else:
+        monitoring_text = (
+            "📂 Выберите категории, чтобы получать новые проекты."
+        )
     return (
         "🏠 <b>Главное меню Lansly</b>\n\n"
-        "⚡ <b>Lansly</b> отслеживает новые проекты на бирже <b>Kwork</b> "
-        "и присылает подходящие задания автоматически.\n\n"
-        "<b>📂 Отслеживаемые категории:</b>\n"
-        f"{follow_categories_str}\n\n"
+        "⚡ <b>Lansly</b> отслеживает новые проекты "
+        "на kwork.ru и fl.ru с учётом ваших настроек.\n\n"
+        f"{monitoring_text}\n\n"
         "⚙️ Используйте меню ниже для управления настройками"
     )
 
 
-def select_followed_categories_message() -> str:
-    return "📂 Выберите категории для мониторинга"
+def category_settings_select_marketplace_message() -> str:
+    return (
+        "📂 <b>Источники и категории</b>\n\n"
+        "Выберите биржу, чтобы настроить категории для мониторинга."
+    )
+
+
+def category_settings_select_direction_message(
+    marketplace: Marketplace,
+) -> str:
+    return f"<b>{MARKETPLACE_LABELS[marketplace]}</b>\n\nВыберите направление:"
+
+
+def category_settings_select_category_message(
+    marketplace: Marketplace,
+    direction: str,
+) -> str:
+    return (
+        f"<b>{MARKETPLACE_LABELS[marketplace]} "
+        f"› {html.escape(direction)}</b>\n\n"
+        "Выберите категории для мониторинга. "
+        "Изменения сохраняются автоматически."
+    )
+
+
+def category_settings_disable_confirmation_message() -> str:
+    return (
+        "⚠️ <b>Отключить мониторинг?</b>\n\n"
+        "Все выбранные категории будут отключены. "
+        "Уведомления о новых заказах больше не будут приходить.\n\n"
+        "Вы сможете снова настроить мониторинг в любое время."
+    )
+
+
+def category_settings_disabled_message() -> str:
+    return (
+        "🔕 <b>Мониторинг отключён</b>\n\n"
+        "Все категории отключены. "
+        "Уведомления о новых заказах больше не будут приходить.\n\n"
+        "Чтобы возобновить мониторинг, выберите источник и категорию."
+    )
 
 
 def categories_limit_exceeded_message(limit: int) -> str:
@@ -97,12 +198,8 @@ def categories_limit_exceeded_message(limit: int) -> str:
     )
 
 
-def unfollow_all_categories_message() -> str:
-    return (
-        "🗑️ Отписка от всех категорий выполнена.\n\n"
-        "Уведомления о новых проектах приходить не будут.\n"
-        "Чтобы возобновить мониторинг — выберите категории в меню."
-    )
+def monitoring_setup_expired_message() -> str:
+    return "⌛ Сессия настройки устарела. Начните настройку заново."
 
 
 def profile_not_set_message() -> str:

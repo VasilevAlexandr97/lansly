@@ -26,6 +26,7 @@ dependencies = [
     "pytest-asyncio>=1.4.0",
     "python-slugify>=8.0.4",
     "redis[hiredis]>=7.4.0",
+    "selectolax>=0.4.11",
     "sqlalchemy>=2.0.51",
     "starlette-admin[tinymce]>=1.0.0",
     "taskiq-redis>=1.2.3",

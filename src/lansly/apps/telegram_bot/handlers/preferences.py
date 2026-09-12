@@ -1,4 +1,5 @@
 import contextlib
+import logging
 
 from aiogram import Bot, F, Router, types
 from aiogram.enums import ChatType
@@ -7,12 +8,8 @@ from aiogram.fsm.context import FSMContext
 from dishka.integrations.aiogram import FromDishka, inject
 
 from lansly.apps.telegram_bot.keyboards import (
-    ManageAction,
-    ManageFollowedCategoriesCB,
     PresetPriceFilterCB,
     build_edit_profile_kbd,
-    build_followed_categories_kbd,
-    build_followed_subcategories_kbd,
     build_price_filter_menu_kbd,
     build_profile_menu_kbd,
     build_start_add_stop_words_kbd,
@@ -21,21 +18,18 @@ from lansly.apps.telegram_bot.keyboards import (
     build_stop_words_menu_kbd,
 )
 from lansly.apps.telegram_bot.messages import (
-    categories_limit_exceeded_message,
     empty_stop_words_delete_message,
     price_filter_format_error_message,
     price_filter_menu_message,
     profile_info_message,
     profile_length_error_message,
     profile_not_set_message,
-    select_followed_categories_message,
     start_add_stop_words_message,
     start_delete_stop_words_message,
     start_edit_profile_message,
     start_set_price_filter_message,
     stop_words_limit_exceeded_message,
     stop_words_menu_message,
-    unfollow_all_categories_message,
 )
 from lansly.apps.telegram_bot.states import (
     FreelancerProfileState,
@@ -45,103 +39,20 @@ from lansly.apps.telegram_bot.states import (
 from lansly.preferences.exceptions import (
     FreelancerProfileLengthError,
     PriceFilterRangeError,
-    UserCategoryFollowLimitExceededError,
 )
 from lansly.preferences.services import (
-    UserCategoryFollowService,
     UserFreelancerProfileService,
     UserPriceFilterService,
     UserStopWordsService,
 )
-from lansly.projects.services import ProjectCategoryService
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 router.message.filter(F.chat.type == ChatType.PRIVATE)
 router.callback_query.filter(
     F.message.chat.type == ChatType.PRIVATE,
 )
-
-
-@router.callback_query(F.data == "configure_followed_categories")
-@router.callback_query(
-    ManageFollowedCategoriesCB.filter(
-        F.action == ManageAction.BROWSE_CATEGORIES,
-    ),
-)
-@inject
-async def start_configure_followed_categories(
-    call: types.CallbackQuery,
-    service: FromDishka[ProjectCategoryService],
-):
-    root_categories = await service.get_root_categories()
-    text = select_followed_categories_message()
-    keyboard = build_followed_categories_kbd(root_categories)
-    await call.message.edit_text(text, reply_markup=keyboard)
-
-
-@router.callback_query(
-    ManageFollowedCategoriesCB.filter(
-        F.action == ManageAction.BROWSE_SUBCATEGORIES,
-    ),
-    ManageFollowedCategoriesCB.filter(
-        F.category_id.is_not(None),
-    ),
-)
-@inject
-async def browse_followed_subcategories(
-    call: types.CallbackQuery,
-    service: FromDishka[UserCategoryFollowService],
-    callback_data: ManageFollowedCategoriesCB,
-):
-    categories = await service.get_subcategories_with_follow_status(
-        parent_id=callback_data.category_id,
-    )
-    text = select_followed_categories_message()
-    keyboard = build_followed_subcategories_kbd(categories)
-    await call.message.edit_text(text, reply_markup=keyboard)
-
-
-@router.callback_query(
-    ManageFollowedCategoriesCB.filter(F.action == ManageAction.FOLLOW),
-    ManageFollowedCategoriesCB.filter(F.category_id.is_not(None)),
-)
-@router.callback_query(
-    ManageFollowedCategoriesCB.filter(F.action == ManageAction.UNFOLLOW),
-    ManageFollowedCategoriesCB.filter(F.category_id.is_not(None)),
-)
-@inject
-async def follow_category(
-    call: types.CallbackQuery,
-    service: FromDishka[UserCategoryFollowService],
-    callback_data: ManageFollowedCategoriesCB,
-):
-    if not callback_data.category_id:
-        return
-    try:
-        result = await service.toggle_category_follow(
-            callback_data.category_id,
-        )
-        text = select_followed_categories_message()
-        keyboard = build_followed_subcategories_kbd(result.categories)
-        await call.message.edit_text(text, reply_markup=keyboard)
-    except UserCategoryFollowLimitExceededError as exc:
-        text = categories_limit_exceeded_message(exc.limit)
-        await call.answer(text, show_alert=True)
-
-
-@router.callback_query(
-    ManageFollowedCategoriesCB.filter(F.action == ManageAction.UNFOLLOW_ALL),
-)
-@inject
-async def unfollow_all_categories(
-    call: types.CallbackQuery,
-    service: FromDishka[UserCategoryFollowService],
-    state: FSMContext,
-):
-    await service.unfollow_all_categories()
-    text = unfollow_all_categories_message()
-    await call.answer(text, show_alert=True)
-    await state.clear()
 
 
 @router.callback_query(F.data == "profile")

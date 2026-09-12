@@ -57,6 +57,11 @@ class KworkConfig:
 
 
 @dataclass(frozen=True)
+class FlRuConfig:
+    ref_id: int | None = None
+
+
+@dataclass(frozen=True)
 class PolzaConfig:
     api_key: str
     base_url: str
@@ -90,6 +95,7 @@ class Config:
     redis: RedisConfig
     telegram_bot: TelegramBotConfig
     kwork: KworkConfig
+    fl: FlRuConfig
     polza: PolzaConfig
     yookassa: YookassaConfig
     admin_panel: AdminPanelConfig
@@ -124,6 +130,9 @@ def get_config() -> Config:
     kwork_ref_id = get_optional_env("KWORK_REF_ID")
     if kwork_ref_id is not None:
         kwork_ref_id = int(kwork_ref_id)
+    flru_ref_id = get_optional_env("FLRU_REF_ID")
+    if flru_ref_id is not None:
+        flru_ref_id = int(flru_ref_id)
     return Config(
         postgres=PostgresConfig(
             host=get_required_env("POSTGRES_HOST"),
@@ -145,6 +154,7 @@ def get_config() -> Config:
             password=get_required_env("KWORK_PASSWORD"),
             ref_id=kwork_ref_id,
         ),
+        fl=FlRuConfig(ref_id=flru_ref_id),
         polza=PolzaConfig(
             api_key=get_required_env("POLZA_API_KEY"),
             base_url=get_required_env("POLZA_BASE_URL"),

@@ -29,8 +29,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def main():
-    logging.basicConfig(level=logging.INFO)
     config = get_config()
+    logging.basicConfig(
+        level=logging.INFO if not config.debug else logging.DEBUG,
+    )
     bot = Bot(token=config.telegram_bot.token)
     container = create_container(
         providers=[WorkerProvider()],
@@ -59,6 +61,7 @@ async def main():
 
 def cli() -> None:
     asyncio.run(main())
+
 
 if __name__ == "__main__":
     asyncio.run(main())
