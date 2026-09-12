@@ -11,6 +11,7 @@ from lansly.notifications.services import (
     ProjectProposalNotificationService,
     SubscriptionNotificationService,
 )
+from lansly.projects.consts import Marketplace
 from lansly.projects.services import (
     ProjectProposalGenerationService,
     ProjectSyncService,
@@ -24,16 +25,30 @@ from lansly.subscriptions.services import (
 logger = logging.getLogger(__name__)
 
 
-@broker.task(schedule=[{"cron": "* * * * *"}])
+@broker.task(
+    schedule=[
+        {
+            "cron": "* * * * *",
+            "args": [Marketplace.KWORK],
+            "schedule_id": "projects-sync:kwork",
+        },
+        {
+            "cron": "* * * * *",
+            "args": [Marketplace.FL],
+            "schedule_id": "projects-sync:fl",
+        },
+    ],
+)
 @inject
-async def monitoring_new_projects(
+async def monitoring_projects(
+    source: Marketplace,
     service: FromDishka[ProjectSyncService],
 ):
-    new_projects = await service.get_and_save_new_projects()
-    logger.info(f"NEW PROJECTS: {new_projects}")
-    if new_projects:
-        await notify_new_projects.kiq(new_projects)
-        await notify_new_projects_to_channel.kiq(new_projects)
+    inserted_ids = await service.sync(source)
+    logger.info(f"COUNT NEW PROJECTS: {len(inserted_ids)} FROM {source}")
+    if inserted_ids:
+        await notify_new_projects.kiq(inserted_ids)
+        await notify_new_projects_to_channel.kiq(inserted_ids)
 
 
 @broker.task()

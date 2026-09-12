@@ -1,5 +1,8 @@
-from lansly.projects.dto import MarketPlaceCategory, MarketPlaceProject
-from lansly.projects.models import Project, ProjectCategory, Customer
+from uuid import UUID
+
+from lansly.projects.consts import Marketplace
+from lansly.projects.dto import MarketplaceCategory, MarketplaceProject
+from lansly.projects.models import Customer, Project, ProjectCategory
 
 
 class FakeProjectCategoryGateway:
@@ -28,7 +31,23 @@ class FakeProjectCategoryGateway:
         self,
         source: str | None = None,
     ) -> list[ProjectCategory]:
-        raise NotImplementedError
+        categories = [
+            category
+            for category in self.existing
+            if category.parent_id is None
+            and (source is None or category.source == source)
+        ]
+        return sorted(categories, key=lambda category: category.title)
+
+    async def get_subcategories(
+        self,
+        parent_id: UUID,
+    ) -> list[ProjectCategory]:
+        return [
+            category
+            for category in self.existing
+            if category.parent_id == parent_id
+        ]
 
 
 class FakeProjectGateway:
@@ -37,16 +56,21 @@ class FakeProjectGateway:
         self.bulk_inserted: list[Project] = []
         self.bulk_insert_calls = 0
 
-    async def bulk_insert(self, projects: list[Project]) -> None:
+    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
         self.bulk_insert_calls += 1
         self.bulk_inserted.extend(projects)
+        return [project.id for project in projects]
 
     async def get_missing_external_ids(
         self,
         external_ids: list[str],
         source: str,
     ) -> set[str]:
-        return set(external_ids) - self.existing_external_ids
+        return (
+            set(external_ids)
+            - self.existing_external_ids
+            - {p.external_id for p in self.bulk_inserted if p.source == source}
+        )
 
 
 class FakeCustomerGateway:
@@ -63,24 +87,41 @@ class FakeCustomerGateway:
 class FakeMarketPlaceClient:
     def __init__(
         self,
-        categories: list[MarketPlaceCategory] | None = None,
-        projects: list[MarketPlaceProject] | None = None,
+        categories: list[MarketplaceCategory] | None = None,
+        projects: list[MarketplaceProject] | None = None,
     ):
         self.categories = categories or []
         self.projects = projects or []
         self.get_categories_calls = 0
         self.get_projects_calls: list[dict] = []
 
-    async def get_categories(self) -> list[MarketPlaceCategory]:
+    async def get_project(self, project_id: str) -> MarketplaceProject | None:
+        return next((p for p in self.projects if p.id == project_id), None)
+
+    async def get_categories(self) -> list[MarketplaceCategory]:
         self.get_categories_calls += 1
         return self.categories
 
     async def get_projects(
         self,
-        categories_ids: list[int | str],
         page: int = 1,
-    ) -> list[MarketPlaceProject]:
+    ) -> list[MarketplaceProject]:
         self.get_projects_calls.append(
-            {"categories_ids": categories_ids, "page": page},
+            {"page": page},
         )
+        return self.projects
+
+
+class FakeProjectCollector:
+    def __init__(
+        self,
+        source: Marketplace | None = None,
+        projects: list[MarketplaceProject] | None = None,
+    ):
+        self.source = source or Marketplace.KWORK
+        self.projects = projects or []
+        self.collect_calls = 0
+
+    async def collect(self) -> list[MarketplaceProject]:
+        self.collect_calls += 1
         return self.projects

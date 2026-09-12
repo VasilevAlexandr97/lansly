@@ -33,6 +33,8 @@ async def test_create_creates_user_with_admin_role(
     role_gateway: FakeUserRoleGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет создание пользователя с ролью администратора, возврат его ID и
+    # фиксацию транзакции без отката.
     dto = await service.create(
         username="admin",
         password="password",
@@ -62,6 +64,8 @@ async def test_create_hashes_password_not_plaintext(
     user_gateway: FakeUserGateway,
     hasher: PasswordHasherBcrypt,
 ):
+    # Проверяет сохранение хеша пароля, который принимает исходный пароль и
+    # отклоняет неверный.
     await service.create(username="admin", password="secret123")
     created = user_gateway.added_users[0]
 
@@ -77,6 +81,8 @@ async def test_create_raises_when_username_exists(
     user_gateway: FakeUserGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет отказ в создании пользователя с занятым именем без фиксации или
+    # отката транзакции.
     user_gateway.users.append(
         User(id=uuid7(), username="admin", password_hash="secret123"),
     )
@@ -92,6 +98,8 @@ async def test_create_rolls_back_on_duplicate_race(
     user_gateway: FakeUserGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет откат транзакции и ошибку дублирования, если имя оказалось
+    # занято на этапе создания пользователя.
     user_gateway.force_usernames = {"admin"}
     with pytest.raises(UserAlreadyExistsError):
         await service.create(username="admin", password="secret123")
@@ -105,6 +113,8 @@ async def test_create_rolls_back_on_create_error(
     user_gateway: FakeUserGateway,
     txn: FakeTransactionManager,
 ):
+    # Проверяет откат транзакции и передачу ошибки создания пользователя
+    # вызывающему коду.
     user_gateway.create_error_usernames = {"admin"}
     with pytest.raises(CreateUserError):
         await service.create(username="admin", password="secret123")
