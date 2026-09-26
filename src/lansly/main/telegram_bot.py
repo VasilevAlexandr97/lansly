@@ -12,7 +12,7 @@ from lansly.apps.telegram_bot.handlers.category_settings import (
     router as category_settings_router,
 )
 from lansly.apps.telegram_bot.handlers.default import router as default_router
-from lansly.apps.telegram_bot.handlers.errors import global_error_handler
+from lansly.apps.telegram_bot.handlers.errors import router as errors_router
 from lansly.apps.telegram_bot.handlers.onboarding import (
     router as onboarding_router,
 )
@@ -56,7 +56,7 @@ def setup_handlers(dp: Dispatcher):
     dp.include_router(preferences_router)
     dp.include_router(projects_router)
     dp.include_router(subscriptions_router)
-    dp.errors.register(global_error_handler)
+    dp.include_router(errors_router)
 
 
 async def get_dispatcher() -> Dispatcher:

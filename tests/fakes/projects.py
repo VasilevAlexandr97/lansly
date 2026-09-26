@@ -1,7 +1,12 @@
 from uuid import UUID
 
 from lansly.projects.consts import Marketplace
-from lansly.projects.dto import MarketplaceCategory, MarketplaceProject
+from lansly.projects.dto import (
+    MarketplaceCategory,
+    MarketplaceProject,
+    ProjectProposalGenerationRequestResult,
+    ProjectProposalGenerationRequestStatus,
+)
 from lansly.projects.models import Customer, Project, ProjectCategory
 
 
@@ -125,3 +130,21 @@ class FakeProjectCollector:
     async def collect(self) -> list[MarketplaceProject]:
         self.collect_calls += 1
         return self.projects
+
+
+class FakeProjectProposalRequestService:
+    def __init__(self):
+        self.requested_project_ids: list[UUID] = []
+        self.error: Exception | None = None
+        self.result = ProjectProposalGenerationRequestResult(
+            status=ProjectProposalGenerationRequestStatus.CREATED,
+        )
+
+    async def request_generation(
+        self,
+        project_id: UUID,
+    ) -> ProjectProposalGenerationRequestResult:
+        self.requested_project_ids.append(project_id)
+        if self.error is not None:
+            raise self.error
+        return self.result

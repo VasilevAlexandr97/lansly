@@ -1,5 +1,6 @@
 from aiogram import F, Router, types
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from dishka.integrations.aiogram import FromDishka, inject
 
@@ -110,7 +111,11 @@ async def select_marketplace_handler(
     )
     text = onboarding_select_direction_message(marketplace)
     keyboard = build_onboarding_directions_kbd(root_categories)
-    await call.message.edit_text(text, reply_markup=keyboard)
+    try:
+        await call.message.edit_text(text, reply_markup=keyboard)
+    except TelegramBadRequest as exc:
+        if "message is not modified" not in exc.message.lower():
+            raise
     await state.set_state(OnboardingState.select_direction)
     await call.answer()
 

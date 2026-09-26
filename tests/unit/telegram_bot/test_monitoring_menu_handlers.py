@@ -3,12 +3,13 @@ from dataclasses import replace
 
 import pytest
 
-from aiogram.methods import DeleteMessage
-from fakes.bot_scenarios import buttons, last_screen
+from aiogram.methods import DeleteMessage, SendMessage
 
 from lansly.apps.telegram_bot.keyboards import MainMenuCB
 from lansly.apps.telegram_bot.states import OnboardingState
 from lansly.preferences.dto import SourceCategoryFollowCountDTO as Count
+
+from .helpers import get_inline_buttons
 
 pytestmark = pytest.mark.asyncio
 
@@ -46,8 +47,9 @@ async def test_start_existing_without_follows(bot_client, fake_auth):
     # существующему пользователю без подписок.
     fake_auth.result = replace(fake_auth.result, is_new=False)
     await bot_client.send_message("/start")
-    assert "Главное меню" in last_screen(bot_client).text
-    assert "Выберите категории" in last_screen(bot_client).text
+    sent_message = bot_client.bot.get_last_method(SendMessage)
+    assert "Главное меню" in sent_message.text
+    assert "Выберите категории" in sent_message.text
 
 
 async def test_start_existing_other_state(bot_client, state, fake_auth):
@@ -67,8 +69,9 @@ async def test_menu_command(bot_client, state, fake_follow_service):
     fake_follow_service.follow_counts = [Count("fl", 2), Count("kwork", 3)]
     await state.set_state("other")
     await bot_client.send_message("/menu")
-    assert "FL - 2" in last_screen(bot_client).text
-    assert "KWORK - 3" in last_screen(bot_client).text
+    sent_message = bot_client.bot.get_last_method(SendMessage)
+    assert "FL - 2" in sent_message.text
+    assert "KWORK - 3" in sent_message.text
     assert await state.get_state() is None
 
 
@@ -79,7 +82,8 @@ async def test_menu_callback_keep_message(bot_client):
     assert not any(
         isinstance(m, DeleteMessage) for m in bot_client.bot.sent_methods
     )
-    assert "Главное меню" in last_screen(bot_client).text
+    sent_message = bot_client.bot.get_last_method(SendMessage)
+    assert "Главное меню" in sent_message.text
 
 
 async def test_menu_callback_delete_message(bot_client, state):
@@ -104,7 +108,8 @@ async def test_menu_roles(bot_client, fake_auth, pro, admin, expected):
     # администратора.
     fake_auth.result = replace(fake_auth.result, is_pro=pro, is_admin=admin)
     await bot_client.send_message("/menu")
-    data = {b.callback_data for b in buttons(last_screen(bot_client))}
+    sent_message = bot_client.bot.get_last_method(SendMessage)
+    data = {b.callback_data for b in get_inline_buttons(sent_message)}
     assert (
         (expected in data)
         if expected
@@ -118,9 +123,10 @@ async def test_menu_refresh_counts(bot_client, fake_follow_service):
     for count in [1, 2, 0]:
         fake_follow_service.follow_counts = [Count("fl", count)]
         await bot_client.send_message("/menu")
+        sent_message = bot_client.bot.get_last_method(SendMessage)
         assert (
-            (f"FL - {count}" in last_screen(bot_client).text)
+            (f"FL - {count}" in sent_message.text)
             if count
-            else ("Выберите категории" in last_screen(bot_client).text)
+            else ("Выберите категории" in sent_message.text)
         )
     assert fake_follow_service.follow_counts_calls == 3

@@ -9,26 +9,35 @@ from dishka.integrations.aiogram import setup_dishka
 from fakes.factories import category
 from fakes.infra import FakeTransactionManager
 from fakes.preferences import MonitoringFollowService
-from fakes.projects import FakeProjectCategoryGateway
+from fakes.projects import (
+    FakeProjectCategoryGateway,
+    FakeProjectProposalRequestService,
+)
 from fakes.telegram_auth import FakeTelegramAuth
 from fakes.telegram_bot import BotClient, FakeBot
 
 from lansly.apps.telegram_bot.handlers import (
     category_settings,
     default,
+    errors,
     onboarding,
+    projects,
 )
 from lansly.auth.telegram_auth import TelegramAuth
 from lansly.common.dto import CurrentUser
 from lansly.preferences.services import UserCategoryFollowService
 from lansly.projects.consts import Marketplace
-from lansly.projects.services import ProjectCategoryService
+from lansly.projects.services import (
+    ProjectCategoryService,
+    ProjectProposalRequestService,
+)
 
 
 class HandlerTestProvider(Provider):
-    def __init__(self, auth, follow, categories):
+    def __init__(self, auth, follow, categories, proposals):
         super().__init__()
         self.auth, self.follow, self.categories = auth, follow, categories
+        self.proposals = proposals
 
     @provide(scope=Scope.REQUEST, provides=TelegramAuth)
     async def get_auth(self) -> FakeTelegramAuth:
@@ -41,6 +50,10 @@ class HandlerTestProvider(Provider):
     @provide(scope=Scope.REQUEST)
     async def get_categories(self) -> ProjectCategoryService:
         return self.categories
+
+    @provide(scope=Scope.REQUEST, provides=ProjectProposalRequestService)
+    async def get_proposals(self) -> FakeProjectProposalRequestService:
+        return self.proposals
 
     @provide(scope=Scope.REQUEST)
     async def get_user(self) -> CurrentUser:
@@ -60,6 +73,11 @@ def fake_auth():
 @pytest.fixture
 def fake_follow_service():
     return MonitoringFollowService()
+
+
+@pytest.fixture
+def fake_proposal_service():
+    return FakeProjectProposalRequestService()
 
 
 @pytest.fixture
@@ -84,9 +102,19 @@ def category_service(fake_follow_service):
 
 
 @pytest_asyncio.fixture
-async def container(fake_auth, fake_follow_service, category_service):
+async def container(
+    fake_auth,
+    fake_follow_service,
+    category_service,
+    fake_proposal_service,
+):
     container = make_async_container(
-        HandlerTestProvider(fake_auth, fake_follow_service, category_service),
+        HandlerTestProvider(
+            fake_auth,
+            fake_follow_service,
+            category_service,
+            fake_proposal_service,
+        ),
     )
     yield container
     await container.close()
@@ -110,7 +138,7 @@ def isolated_router(source):
 @pytest_asyncio.fixture
 async def dp(container, memory_storage):
     dispatcher = Dispatcher(storage=memory_storage)
-    for module in (default, onboarding, category_settings):
+    for module in (default, onboarding, category_settings, projects, errors):
         dispatcher.include_router(isolated_router(module.router))
     setup_dishka(container, dispatcher)
     yield dispatcher
@@ -118,12 +146,17 @@ async def dp(container, memory_storage):
 
 
 @pytest.fixture
-def bot_client(dp):
-    return BotClient(dp, FakeBot())
+def bot() -> FakeBot:
+    return FakeBot()
 
 
 @pytest.fixture
-def state(bot_client):
+def bot_client(dp: Dispatcher, bot: FakeBot):
+    return BotClient(dp, bot)
+
+
+@pytest.fixture
+def state(bot_client: BotClient):
     return bot_client.dp.fsm.get_context(
         bot=bot_client.bot,
         chat_id=bot_client.chat_id,
