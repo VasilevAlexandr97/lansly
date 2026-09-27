@@ -5,8 +5,8 @@ from uuid import uuid7
 
 import pytest
 
+from aiogram.methods import AnswerCallbackQuery, EditMessageText
 from aiogram.types import Chat, InaccessibleMessage, Message
-from fakes.bot_scenarios import buttons, last_answer, last_screen, settings
 
 from lansly.apps.telegram_bot.keyboards import (
     CategorySettingsAction,
@@ -15,7 +15,35 @@ from lansly.apps.telegram_bot.keyboards import (
 from lansly.apps.telegram_bot.states import CategorySettingsState
 from lansly.preferences.exceptions import UserCategoryFollowLimitExceededError
 
+from .helpers import get_inline_buttons
+
 pytestmark = pytest.mark.asyncio
+
+
+async def open_settings(client):
+    await client.click(
+        CategorySettingsCB(action=CategorySettingsAction.OPEN).pack(),
+    )
+
+
+async def choose_marketplace(client, follow, source="fl"):
+    await client.click(
+        CategorySettingsCB(
+            action=CategorySettingsAction.MARKETPLACE,
+            marketplace=source,
+        ).pack(),
+    )
+    return follow.directions[source][0]
+
+
+async def choose_direction(client, follow, direction):
+    await client.click(
+        CategorySettingsCB(
+            action=CategorySettingsAction.DIRECTION,
+            category_id=direction.id,
+        ).pack(),
+    )
+    return follow.categories[direction.id][0]
 
 
 async def test_open_settings(bot_client, state):
@@ -23,15 +51,14 @@ async def test_open_settings(bot_client, state):
     # FSM и показом четырёх кнопок.
     await state.set_state("other")
     await state.set_data({"old": 1})
-    await bot_client.click(
-        CategorySettingsCB(action=CategorySettingsAction.OPEN).pack(),
-    )
+    await open_settings(bot_client)
     assert (
         await state.get_state()
         == CategorySettingsState.select_marketplace.state
     )
     assert await state.get_data() == {}
-    assert len(buttons(last_screen(bot_client))) == 4
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    assert len(get_inline_buttons(edited_message)) == 4
 
 
 @pytest.mark.parametrize("source", ["fl", "kwork"])
@@ -43,7 +70,12 @@ async def test_select_marketplace(
 ):
     # Проверяет загрузку направлений выбранной площадки, сохранение их в FSM и
     # переход к выбору направления.
-    root = await settings(bot_client, fake_follow_service, source, "direction")
+    await open_settings(bot_client)
+    root = await choose_marketplace(
+        bot_client,
+        fake_follow_service,
+        source=source,
+    )
     assert (
         await state.get_state() == CategorySettingsState.select_direction.state
     )
@@ -57,7 +89,9 @@ async def test_select_marketplace(
 async def test_select_direction(bot_client, state, fake_follow_service):
     # Проверяет переход к выбору категории с сохранением названия направления и
     # доступных категорий в FSM.
-    child = await settings(bot_client, fake_follow_service)
+    await open_settings(bot_client)
+    direction = await choose_marketplace(bot_client, fake_follow_service)
+    child = await choose_direction(bot_client, fake_follow_service, direction)
     data = await state.get_data()
     assert data["direction_title"] == "Дизайн"
     assert data["categories"] == {
@@ -71,7 +105,9 @@ async def test_select_direction(bot_client, state, fake_follow_service):
 async def test_toggle_category(bot_client, state, fake_follow_service):
     # Проверяет включение и отключение категории повторными нажатиями с
     # обновлением отметки кнопки и сохранением шага.
-    child = await settings(bot_client, fake_follow_service)
+    await open_settings(bot_client)
+    direction = await choose_marketplace(bot_client, fake_follow_service)
+    child = await choose_direction(bot_client, fake_follow_service, direction)
     await bot_client.click(
         CategorySettingsCB(
             action=CategorySettingsAction.TOGGLE,
@@ -79,9 +115,8 @@ async def test_toggle_category(bot_client, state, fake_follow_service):
         ).pack(),
     )
     assert child.id in fake_follow_service.followed
-    assert buttons(
-        last_screen(bot_client),
-    )[0].text.startswith("✅")
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    assert get_inline_buttons(edited_message)[0].text.startswith("✅")
     await bot_client.click(
         CategorySettingsCB(
             action=CategorySettingsAction.TOGGLE,
@@ -89,9 +124,8 @@ async def test_toggle_category(bot_client, state, fake_follow_service):
         ).pack(),
     )
     assert child.id not in fake_follow_service.followed
-    assert buttons(
-        last_screen(bot_client),
-    )[0].text.startswith("⬜")
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    assert get_inline_buttons(edited_message)[0].text.startswith("⬜")
     assert (
         await state.get_state() == CategorySettingsState.select_category.state
     )
@@ -100,8 +134,10 @@ async def test_toggle_category(bot_client, state, fake_follow_service):
 async def test_toggle_limit_exceeded(bot_client, state, fake_follow_service):
     # Проверяет показ ошибки лимита без замены экрана и выхода из шага выбора
     # категории.
-    child = await settings(bot_client, fake_follow_service)
-    before = last_screen(bot_client)
+    await open_settings(bot_client)
+    direction = await choose_marketplace(bot_client, fake_follow_service)
+    child = await choose_direction(bot_client, fake_follow_service, direction)
+    before = bot_client.bot.get_last_method(EditMessageText)
     fake_follow_service.error = UserCategoryFollowLimitExceededError(limit=1)
     await bot_client.click(
         CategorySettingsCB(
@@ -109,8 +145,9 @@ async def test_toggle_limit_exceeded(bot_client, state, fake_follow_service):
             category_id=child.id,
         ).pack(),
     )
-    assert last_answer(bot_client).show_alert
-    assert last_screen(bot_client) is before
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
+    assert bot_client.bot.get_last_method(EditMessageText) is before
     assert (
         await state.get_state() == CategorySettingsState.select_category.state
     )
@@ -119,7 +156,9 @@ async def test_toggle_limit_exceeded(bot_client, state, fake_follow_service):
 async def test_back_to_directions(bot_client, state, fake_follow_service):
     # Проверяет возврат к направлениям с обновлённым счётчиком после включения
     # подписки на категорию.
-    child = await settings(bot_client, fake_follow_service)
+    await open_settings(bot_client)
+    direction = await choose_marketplace(bot_client, fake_follow_service)
+    child = await choose_direction(bot_client, fake_follow_service, direction)
     await bot_client.click(
         CategorySettingsCB(
             action=CategorySettingsAction.TOGGLE,
@@ -131,7 +170,8 @@ async def test_back_to_directions(bot_client, state, fake_follow_service):
             action=CategorySettingsAction.BACK_TO_DIRECTIONS,
         ).pack(),
     )
-    assert "[1/1]" in buttons(last_screen(bot_client))[0].text
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    assert "[1/1]" in get_inline_buttons(edited_message)[0].text
     assert (
         await state.get_state() == CategorySettingsState.select_direction.state
     )
@@ -164,7 +204,7 @@ async def test_back_to_marketplaces(bot_client, state, step):
 async def test_request_disable_all(bot_client, state, fake_follow_service):
     # Проверяет переход к подтверждению отключения мониторинга без немедленной
     # отписки.
-    await settings(bot_client, fake_follow_service, step="marketplace")
+    await open_settings(bot_client)
     await bot_client.click(
         CategorySettingsCB(action=CategorySettingsAction.DISABLE_ALL).pack(),
     )
@@ -180,7 +220,7 @@ async def test_cancel_disable_all(bot_client, state, fake_follow_service):
     # существующие подписки.
     fake_follow_service.followed.add(uuid7())
     before = set(fake_follow_service.followed)
-    await settings(bot_client, fake_follow_service, step="marketplace")
+    await open_settings(bot_client)
     await bot_client.click(
         CategorySettingsCB(action=CategorySettingsAction.DISABLE_ALL).pack(),
     )
@@ -240,7 +280,8 @@ async def test_confirm_disable_roles(
             action=CategorySettingsAction.CONFIRM_DISABLE_ALL,
         ).pack(),
     )
-    data = {b.callback_data for b in buttons(last_screen(bot_client))}
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    data = {b.callback_data for b in get_inline_buttons(edited_message)}
     assert (
         (expected in data)
         if expected
@@ -260,18 +301,15 @@ async def test_empty_directions(bot_client, state, fake_follow_service):
         ).pack(),
     )
     assert (await state.get_data())["directions"] == {}
-    assert (
-        len(
-            buttons(last_screen(bot_client)),
-        )
-        == 2
-    )
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    assert len(get_inline_buttons(edited_message)) == 2
 
 
 async def test_empty_categories(bot_client, state, fake_follow_service):
     # Проверяет пустой словарь категорий в FSM и две навигационные кнопки, если
     # у направления нет подкатегорий.
-    root = await settings(bot_client, fake_follow_service, step="direction")
+    await open_settings(bot_client)
+    root = await choose_marketplace(bot_client, fake_follow_service)
     fake_follow_service.categories[root.id] = []
     await bot_client.click(
         CategorySettingsCB(
@@ -280,12 +318,8 @@ async def test_empty_categories(bot_client, state, fake_follow_service):
         ).pack(),
     )
     assert (await state.get_data())["categories"] == {}
-    assert (
-        len(
-            buttons(last_screen(bot_client)),
-        )
-        == 2
-    )
+    edited_message = bot_client.bot.get_last_method(EditMessageText)
+    assert len(get_inline_buttons(edited_message)) == 2
 
 
 @pytest.mark.parametrize(
@@ -307,7 +341,8 @@ async def test_missing_callback_fields(bot_client, state, action, step):
     # callback настроек.
     await state.set_state(step)
     await bot_client.click(CategorySettingsCB(action=action).pack())
-    assert last_answer(bot_client).show_alert
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
 
 
 @pytest.mark.parametrize(
@@ -331,20 +366,23 @@ async def test_missing_state_data(bot_client, state, action, step):
     await bot_client.click(
         CategorySettingsCB(action=action, category_id=uuid7()).pack(),
     )
-    assert last_answer(bot_client).show_alert
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
 
 
 async def test_unknown_direction(bot_client, state, fake_follow_service):
     # Проверяет отказ при выборе неизвестного направления с сохранением
     # текущего шага настроек.
-    await settings(bot_client, fake_follow_service, step="direction")
+    await open_settings(bot_client)
+    await choose_marketplace(bot_client, fake_follow_service)
     await bot_client.click(
         CategorySettingsCB(
             action=CategorySettingsAction.DIRECTION,
             category_id=uuid7(),
         ).pack(),
     )
-    assert last_answer(bot_client).show_alert
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
     assert (
         await state.get_state() == CategorySettingsState.select_direction.state
     )
@@ -353,14 +391,17 @@ async def test_unknown_direction(bot_client, state, fake_follow_service):
 async def test_unknown_category(bot_client, fake_follow_service):
     # Проверяет отказ при выборе неизвестной категории без вызова переключения
     # подписки.
-    await settings(bot_client, fake_follow_service)
+    await open_settings(bot_client)
+    direction = await choose_marketplace(bot_client, fake_follow_service)
+    await choose_direction(bot_client, fake_follow_service, direction)
     await bot_client.click(
         CategorySettingsCB(
             action=CategorySettingsAction.TOGGLE,
             category_id=uuid7(),
         ).pack(),
     )
-    assert last_answer(bot_client).show_alert
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
     assert not any(c[0] == "toggle" for c in fake_follow_service.calls)
 
 
@@ -391,7 +432,8 @@ async def test_inaccessible_message(bot_client, state, action, step):
         CategorySettingsCB(action=action, marketplace="fl").pack(),
         message=msg,
     )
-    assert last_answer(bot_client).show_alert
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
     assert await state.get_state() == (step.state if step else None)
 
 
@@ -427,7 +469,8 @@ async def test_disable_inaccessible_message(
         CategorySettingsCB(action=action).pack(),
         message=msg,
     )
-    assert last_answer(bot_client).show_alert is not True
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert is not True
     assert await state.get_state() == step.state
     assert ("disable",) not in fake_follow_service.calls
 
@@ -440,7 +483,8 @@ async def test_expired_callback(bot_client, fake_follow_service):
             action=CategorySettingsAction.CONFIRM_DISABLE_ALL,
         ).pack(),
     )
-    assert last_answer(bot_client).show_alert
+    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
+    assert callback_answer.show_alert
     assert ("disable",) not in fake_follow_service.calls
 
 
@@ -464,7 +508,17 @@ async def test_full_multisource_flow(bot_client, state, fake_follow_service):
     # Проверяет подписку на категории обеих площадок с обновлением счётчиков и
     # последующее отключение всех подписок.
     for source in ["fl", "kwork"]:
-        child = await settings(bot_client, fake_follow_service, source)
+        await open_settings(bot_client)
+        direction = await choose_marketplace(
+            bot_client,
+            fake_follow_service,
+            source=source,
+        )
+        child = await choose_direction(
+            bot_client,
+            fake_follow_service,
+            direction,
+        )
         await bot_client.click(
             CategorySettingsCB(
                 action=CategorySettingsAction.TOGGLE,
@@ -476,9 +530,10 @@ async def test_full_multisource_flow(bot_client, state, fake_follow_service):
                 action=CategorySettingsAction.BACK_TO_DIRECTIONS,
             ).pack(),
         )
-        assert "[1/1]" in buttons(last_screen(bot_client))[0].text
+        edited_message = bot_client.bot.get_last_method(EditMessageText)
+        assert "[1/1]" in get_inline_buttons(edited_message)[0].text
     assert len(fake_follow_service.followed) == 2
-    await settings(bot_client, fake_follow_service, step="marketplace")
+    await open_settings(bot_client)
     await bot_client.click(
         CategorySettingsCB(action=CategorySettingsAction.DISABLE_ALL).pack(),
     )

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -12,6 +13,27 @@ from aiogram.types import CallbackQuery, Chat, Message, Update, User
 class FakeBot(Bot):
     def __init__(self):
         self.sent_methods: list[TelegramMethod[Any]] = []
+        self._method_errors: dict[
+            type[TelegramMethod[Any]],
+            Callable[[TelegramMethod[Any]], Exception],
+        ] = {}
+
+    def set_method_error(
+        self,
+        method_type: type[TelegramMethod[Any]],
+        error_factory: Callable[[TelegramMethod[Any]], Exception],
+    ) -> None:
+        self._method_errors[method_type] = error_factory
+
+    def get_last_method[MethodT: TelegramMethod[Any]](
+        self,
+        method_type: type[MethodT],
+    ) -> MethodT:
+        for method in reversed(self.sent_methods):
+            if isinstance(method, method_type):
+                return method
+        message = f"Бот не вызвал {method_type.__name__}"
+        raise AssertionError(message)
 
     @property
     def id(self):
@@ -24,6 +46,9 @@ class FakeBot(Bot):
     ) -> Any:
         del request_timeout
         self.sent_methods.append(method)
+        error_factory = self._method_errors.get(type(method))
+        if error_factory is not None:
+            raise error_factory(method)
         return True
 
     def __hash__(self) -> int:
