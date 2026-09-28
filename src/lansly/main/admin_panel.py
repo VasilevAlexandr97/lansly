@@ -9,6 +9,7 @@ from dishka.integrations.fastapi import FastapiProvider, setup_dishka
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine
 from starlette.middleware.sessions import SessionMiddleware
+from starlette_admin import TimezoneConfig
 from starlette_admin.contrib.sqla import Admin
 
 from lansly.apps.web.admin_panel.auth import AdminPanelAuthProvider
@@ -84,6 +85,11 @@ def setup_admin(engine: AsyncEngine, app: FastAPI, config: Config) -> None:
         templates_dir=templates_dir,
         debug=config.debug,
         auth_provider=AdminPanelAuthProvider(),
+        timezone_config=TimezoneConfig(
+            default_timezone="UTC",
+            database_timezone="UTC",
+            timezone_switcher=["UTC", "Europe/Moscow", "Asia/Yekaterinburg"],
+        ),
     )
     setup_views(admin)
     admin.mount_to(app)
