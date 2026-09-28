@@ -22,6 +22,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from lansly.analytics.gateways import SAOverviewGateway
+from lansly.analytics.interfaces import OverviewGateway
+from lansly.analytics.services import OverviewService
 from lansly.apps.web.sitemap.builder import SitemapBuilder
 from lansly.apps.web.sitemap.sections import (
     ArticlesSitemapSection,
@@ -314,6 +317,18 @@ class InfraProvider(Provider):
         )
         yield client
         await client.close()
+
+
+class AnalyticsProvider(Provider):
+    overview_gateway = provide(
+        SAOverviewGateway,
+        scope=Scope.REQUEST,
+        provides=OverviewGateway,
+    )
+    overview_service = provide(
+        OverviewService,
+        scope=Scope.REQUEST,
+    )
 
 
 class AuthProvider(Provider):
@@ -791,6 +806,7 @@ def create_container(
     context: dict[Any, Any] | None = None,
 ) -> AsyncContainer:
     return make_async_container(
+        AnalyticsProvider(),
         AuthProvider(),
         ArticleProvider(),
         InfraProvider(),
