@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
+from uuid import UUID
 
 
 @dataclass(frozen=True)
@@ -18,3 +19,11 @@ class DailyNotificationCount:
 class CategoryFollowCounts:
     one_category: int
     two_or_more_categories: int
+
+
+@dataclass(frozen=True)
+class TopFollowedCategory:
+    category_id: UUID
+    title: str
+    source: str
+    followers_count: int

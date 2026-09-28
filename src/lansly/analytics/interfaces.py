@@ -6,6 +6,7 @@ from lansly.analytics.dto import (
     CategoryFollowCounts,
     DailyNewUserCount,
     DailyNotificationCount,
+    TopFollowedCategory,
 )
 
 
@@ -59,6 +60,13 @@ class OverviewGateway(Protocol):
     async def get_active_category_follow_counts(
         self,
     ) -> CategoryFollowCounts:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_top_followed_categories(
+        self,
+        limit: int,
+    ) -> list[TopFollowedCategory]:
         raise NotImplementedError
 
     @abstractmethod
