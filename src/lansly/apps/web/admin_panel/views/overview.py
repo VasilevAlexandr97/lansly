@@ -261,7 +261,7 @@ async def build_new_users_chart(request: Request) -> ChartWidget:
             {
                 "name": "Новые пользователи",
                 "data": [point.count for point in points],
-            }
+            },
         ]
 
     return ChartWidget(

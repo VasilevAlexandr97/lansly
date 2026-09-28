@@ -19,8 +19,8 @@ from lansly.articles.exceptions import (
 from lansly.articles.interfaces import ArticleGateway, ArticleImageGateway
 from lansly.articles.models import Article, ArticleImage
 from lansly.articles.validators import article_image_validator
-from lansly.auth.exceptions import ForbiddenError
 from lansly.auth.interfaces import IdProvider
+from lansly.auth.permissions import require_admin
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.common.pagination import PaginationParams, PaginationResponse
 
@@ -41,9 +41,8 @@ class ArticleService:
         self.id_provider = id_provider
 
     async def _require_admin(self) -> None:
-        user = await self.id_provider.get_current_user()
-        if not user.is_admin:
-            raise ForbiddenError("Admin access required")
+        role = await self.id_provider.get_role()
+        require_admin(role)
 
     def _extract_image_ids(self, content: str) -> list[UUID]:
         ids = []

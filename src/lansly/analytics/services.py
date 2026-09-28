@@ -6,9 +6,8 @@ from lansly.analytics.dto import (
     DailyNotificationCount,
 )
 from lansly.analytics.interfaces import OverviewGateway
-from lansly.auth.exceptions import ForbiddenError
 from lansly.auth.interfaces import IdProvider
-from lansly.users.models import Role
+from lansly.auth.permissions import require_admin
 
 
 class OverviewService:
@@ -16,13 +15,12 @@ class OverviewService:
         self.gateway = gateway
         self.id_provider = id_provider
 
-    def _require_admin(self, user_role: Role) -> None:
-        if user_role != Role.ADMIN:
-            raise ForbiddenError
+    async def _require_admin(self) -> None:
+        role = await self.id_provider.get_role()
+        require_admin(role)
 
     async def count_users(self) -> int:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         return await self.gateway.count_users()
 
     async def count_new_users(
@@ -30,8 +28,7 @@ class OverviewService:
         days: int,
         source: str | None = None,
     ) -> int:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         end_at = datetime.now(UTC)
         start_at = end_at - timedelta(days=days)
         return await self.gateway.count_new_users(
@@ -44,8 +41,7 @@ class OverviewService:
         self,
         days: int,
     ) -> list[DailyNewUserCount]:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
 
         end_at = datetime.now(UTC)
         first_day = end_at.date() - timedelta(days=days - 1)
@@ -68,8 +64,7 @@ class OverviewService:
         ]
 
     async def count_notifications(self, days: int) -> int:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         end_at = datetime.now(UTC)
         start_at = end_at - timedelta(days=days)
         return await self.gateway.count_notifications(
@@ -78,8 +73,7 @@ class OverviewService:
         )
 
     async def count_notification_recipients(self, days: int) -> int:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         end_at = datetime.now(UTC)
         start_at = end_at - timedelta(days=days)
         return await self.gateway.count_notification_recipients(
@@ -91,8 +85,7 @@ class OverviewService:
         self,
         days: int,
     ) -> list[DailyNotificationCount]:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         end_at = datetime.now(UTC)
         first_day = end_at.date() - timedelta(days=days - 1)
         start_at = datetime.combine(first_day, time.min, tzinfo=UTC)
@@ -116,13 +109,11 @@ class OverviewService:
     async def get_active_category_follow_counts(
         self,
     ) -> CategoryFollowCounts:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         return await self.gateway.get_active_category_follow_counts()
 
     async def count_active_subscription_users(self) -> int:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         return await self.gateway.count_active_subscription_users()
 
     async def count_projects(
@@ -130,8 +121,7 @@ class OverviewService:
         days: int,
         source: str | None = None,
     ) -> int:
-        user_role = await self.id_provider.get_role()
-        self._require_admin(user_role)
+        await self._require_admin()
         end_at = datetime.now(UTC)
         start_at = end_at - timedelta(days=days)
         return await self.gateway.count_projects(
