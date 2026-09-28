@@ -1,9 +1,11 @@
 from datetime import UTC, datetime, time, timedelta
 
+from lansly.analytics.consts import TOP_FOLLOWED_CATEGORIES_LIMIT
 from lansly.analytics.dto import (
     CategoryFollowCounts,
     DailyNewUserCount,
     DailyNotificationCount,
+    TopFollowedCategory,
 )
 from lansly.analytics.interfaces import OverviewGateway
 from lansly.auth.interfaces import IdProvider
@@ -111,6 +113,12 @@ class OverviewService:
     ) -> CategoryFollowCounts:
         await self._require_admin()
         return await self.gateway.get_active_category_follow_counts()
+
+    async def get_top_followed_categories(self) -> list[TopFollowedCategory]:
+        await self._require_admin()
+        return await self.gateway.get_top_followed_categories(
+            TOP_FOLLOWED_CATEGORIES_LIMIT,
+        )
 
     async def count_active_subscription_users(self) -> int:
         await self._require_admin()

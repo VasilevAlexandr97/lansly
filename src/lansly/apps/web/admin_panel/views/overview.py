@@ -1,3 +1,5 @@
+from typing import Any
+
 from dishka import AsyncContainer
 from starlette.requests import Request
 from starlette.responses import Response
@@ -7,6 +9,7 @@ from starlette_admin import (
     ColumnWidget,
     GridWidget,
     StatWidget,
+    TableWidget,
     route,
 )
 from starlette_admin.views import CustomView
@@ -14,7 +17,7 @@ from starlette_admin.widgets import render_widget
 
 from lansly.analytics.dto import CategoryFollowCounts
 from lansly.analytics.services import OverviewService
-from lansly.projects.consts import Marketplace
+from lansly.projects.consts import MARKETPLACE_LABELS, Marketplace
 
 
 def get_days(request: Request) -> int:
@@ -93,6 +96,21 @@ async def count_users_with_one_category(request: Request) -> int:
 
 async def count_users_with_multiple_categories(request: Request) -> int:
     return (await get_category_follow_counts(request)).two_or_more_categories
+
+
+async def top_followed_categories_rows(request: Request) -> list[list[Any]]:
+    container: AsyncContainer = request.state.dishka_container
+    async with container() as req_c:
+        service = await req_c.get(OverviewService)
+        categories = await service.get_top_followed_categories()
+    return [
+        [
+            category.title,
+            MARKETPLACE_LABELS.get(category.source, category.source),
+            category.followers_count,
+        ]
+        for category in categories
+    ]
 
 
 async def count_active_subscription_users(request: Request) -> int:
@@ -218,6 +236,12 @@ project_stats_row = GridWidget(
     gutter=3,
 )
 
+top_followed_categories_table = TableWidget(
+    title="Топ-15 отслеживаемых категорий",
+    columns=["Категория", "Площадка", "Пользователей"],
+    rows_callback=top_followed_categories_rows,
+)
+
 
 async def build_notification_chart(request: Request) -> ChartWidget:
     container: AsyncContainer = request.state.dishka_container
@@ -294,6 +318,7 @@ class OverviewView(CustomView):
             children=[
                 stats_row,
                 project_stats_row,
+                top_followed_categories_table,
                 await build_new_users_chart(request),
                 await build_notification_chart(request),
             ],
