@@ -1,6 +1,7 @@
 import logging
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from aiogram import Bot
 from dishka import AsyncContainer
@@ -18,6 +19,10 @@ from lansly.apps.web.admin_panel.routers.media import (
     router as upload_media_router,
 )
 from lansly.apps.web.admin_panel.views.articles import ArticleView
+from lansly.apps.web.admin_panel.views.notifications import (
+    ProjectNotificationView,
+)
+from lansly.apps.web.admin_panel.views.overview import OverviewView
 from lansly.apps.web.admin_panel.views.projects import (
     CustomerView,
     ProjectProposalView,
@@ -32,6 +37,7 @@ from lansly.main.di import (
     AuthProvider,
     create_container,
 )
+from lansly.notifications.models import ProjectNotification
 from lansly.projects.models import Customer, Project, ProjectProposal
 from lansly.users.models import User
 
@@ -60,12 +66,22 @@ def setup_views(admin: Admin) -> None:
     admin.add_view(CustomerView(Customer))
     admin.add_view(ProjectProposalView(ProjectProposal))
     admin.add_view(ArticleView(Article))
+    admin.add_view(ProjectNotificationView(ProjectNotification))
 
 
 def setup_admin(engine: AsyncEngine, app: FastAPI, config: Config) -> None:
+    templates_dir = str(
+        Path(__file__).resolve().parents[1]
+        / "apps"
+        / "web"
+        / "admin_panel"
+        / "templates",
+    )
     admin = Admin(
         session_provider=engine,
         title="Lansly admin panel",
+        index_view=OverviewView(),
+        templates_dir=templates_dir,
         debug=config.debug,
         auth_provider=AdminPanelAuthProvider(),
     )

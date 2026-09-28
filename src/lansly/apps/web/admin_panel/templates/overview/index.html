@@ -1,0 +1,19 @@
+{% extends "@starlette-admin/index.html" %}
+
+{% block header %}
+  <h2 class="page-title">Обзор</h2>
+{% endblock %}
+
+{% block content %}
+  <nav class="btn-group mb-3" aria-label="Период статистики">
+    {% for value in (7, 30, 90) %}
+      <a href="?days={{ value }}"
+         class="btn {% if days == value %}btn-primary{% else %}btn-outline-primary{% endif %}"
+         {% if days == value %}aria-current="page"{% endif %}>
+        {{ value }} дней
+      </a>
+    {% endfor %}
+  </nav>
+
+  {{ super() }}
+{% endblock %}

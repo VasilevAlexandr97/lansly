@@ -17,6 +17,7 @@ class CustomerUsernameField(ComputedField):
 class ProjectView(ModelView):
     fields = [  # noqa: RUF012
         Project.id,
+        Project.source,
         Project.title,
         Project.description,
         Project.price,
