@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from lansly.preferences.dto import (
     CategoryWithFollowedStatusDTO,
     DirectionWithFollowCountsDTO,
@@ -8,7 +6,6 @@ from lansly.preferences.dto import (
     SubcategoriesWithFollowStatusDTO,
 )
 from lansly.projects.consts import Marketplace
-from lansly.users.models import User
 
 
 # TODO: подумать добавить или нет интерфейс для основного сервиса
@@ -100,46 +97,3 @@ class MonitoringFollowService(FakeFollowService):
     async def unfollow_all_categories(self):
         self.calls.append(("disable",))
         self.followed.clear()
-
-
-class FakeUserStopWordsGateway:
-    def __init__(self) -> None:
-        self.words: dict[UUID, list[str]] = {}
-
-    async def get_stop_words_by_user_ids(
-        self,
-        user_ids: list[UUID],
-    ) -> dict[UUID, list[str]]:
-        return {
-            user_id: self.words[user_id]
-            for user_id in user_ids
-            if user_id in self.words
-        }
-
-
-class FakeUserPriceFilterGateway:
-    def __init__(self) -> None:
-        self.prices: dict[UUID, tuple[int, int]] = {}
-
-    async def get_filter_by_user_ids(
-        self,
-        user_ids: list[UUID],
-    ) -> dict[UUID, tuple[int, int]]:
-        return {
-            user_id: self.prices[user_id]
-            for user_id in user_ids
-            if user_id in self.prices
-        }
-
-
-class FakeUserCategoryFollowGateway:
-    def __init__(self) -> None:
-        self.users_by_category: dict[UUID, list[User]] = {}
-        self.requested_categories: list[UUID] = []
-
-    async def get_users_followed_to_category(
-        self,
-        category_id: UUID,
-    ) -> list[User]:
-        self.requested_categories.append(category_id)
-        return self.users_by_category.get(category_id, [])

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
@@ -8,7 +8,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     String,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -51,11 +50,6 @@ class User(Base):
         DateTime(timezone=True),
         nullable=False,
     )
-    is_telegram_unavailable: Mapped[bool] = mapped_column(
-        default=False,
-        server_default=text("false"),
-        nullable=False,
-    )
 
     proposals: Mapped[list["ProjectProposal"]] = relationship(
         back_populates="user",
@@ -70,18 +64,9 @@ class User(Base):
             f"username={self.username}, "
             f"source={self.source}, "
             f"created_at={self.created_at}, "
-            f"updated_at={self.updated_at}, "
-            f"is_telegram_unavailable={self.is_telegram_unavailable}"
+            f"updated_at={self.updated_at}"
             ")"
         )
-
-    def mark_telegram_unavailable(self) -> None:
-        self.is_telegram_unavailable = True
-        self.updated_at = datetime.now(UTC)
-
-    def mark_telegram_available(self) -> None:
-        self.is_telegram_unavailable = False
-        self.updated_at = datetime.now(UTC)
 
 
 class UserRole(Base):
@@ -101,8 +86,6 @@ class UserRole(Base):
         DateTime(timezone=True),
         nullable=False,
     )
-
-
 
     def __repr__(self) -> str:
         return (

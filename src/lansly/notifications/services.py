@@ -4,6 +4,9 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
+from redis.asyncio.client import Redis
+from redis.asyncio.lock import Lock
+
 from lansly.apps.telegram_bot.keyboards import (
     build_channel_project_kbd,
     build_no_active_subscription_kbd,
@@ -15,10 +18,8 @@ from lansly.apps.telegram_bot.messages import (
     generating_proposal_failed_message,
     kwork_project_message,
 )
-from lansly.common.interfaces.lock_manager import DistributedLockManager
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.infra.telegram.telegram_notifier import TelegramNotifier
-from lansly.notifications.exceptions import RecipientUnavailableError
 from lansly.notifications.interfaces import (
     ChannelNotificationGateway,
     ProjectNotificationGateway,
@@ -57,7 +58,7 @@ class ProjectNotificationService:
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
         url_builder: MarketplaceUrlBuilder,
-        lock_manager: DistributedLockManager,
+        redis: Redis,
         channel_id: int | None = None,
     ):
         self.project_gateway = project_gateway
@@ -69,7 +70,8 @@ class ProjectNotificationService:
         self.telegram_notifier = telegram_notifier
         self.transaction_manager = transaction_manager
         self.url_builder = url_builder
-        self.lock_manager = lock_manager
+        self.redis = redis
+        self.lock = Lock(self.redis, "project_notification", timeout=600)
         self.channel_id = channel_id
 
     def _contains_stop_word(self, text: str, stop_words: list[str]) -> bool:
@@ -99,16 +101,7 @@ class ProjectNotificationService:
 
         project_notifications = []
 
-        async with self.lock_manager.try_lock(
-            key="project_notification",
-            timeout=600,
-            blocking=True,
-        ) as acquired:
-            if not acquired:
-                raise RuntimeError(
-                    "Project notification lock was not acquired",
-                )
-
+        async with self.lock:
             for project in projects:
                 if project.category_id is None:
                     continue
@@ -132,12 +125,6 @@ class ProjectNotificationService:
                 for user in users:
                     if user.telegram_id is None:
                         continue
-                    if user.is_telegram_unavailable:
-                        logger.info(
-                            f"User with telegram_id={user.telegram_id} "
-                            "telegram unavailable",
-                        )
-                        continue
                     user_stop_words = stop_words_map.get(user.id, [])
                     if self._contains_stop_word(project_text, user_stop_words):
                         continue
@@ -150,13 +137,6 @@ class ProjectNotificationService:
                             or project.price > max_price
                         ):
                             continue
-
-                    notification = ProjectNotification(
-                        project_id=project.id,
-                        user_id=user.id,
-                        sent_at=datetime.now(UTC),
-                        error=None,
-                    )
                     try:
                         project_links = self.url_builder.build_links(project)
                         await self.telegram_notifier.send_message(
@@ -167,21 +147,22 @@ class ProjectNotificationService:
                             ),
                             keyboard=build_project_kbd(project, project_links),
                         )
-                    except RecipientUnavailableError as exc:
-                        notification.error = str(exc)
-                        user.mark_telegram_unavailable()
-                        await self.transaction_manager.flush()
-                    except Exception as exc:
-                        notification.error = str(exc)
+                        project_notifications.append(
+                            ProjectNotification(
+                                project_id=project.id,
+                                user_id=user.id,
+                                sent_at=datetime.now(UTC),
+                            ),
+                        )
+                    except Exception:
                         logger.exception("Failed to send message")
-                    project_notifications.append(notification)
                     await asyncio.sleep(0.3)
 
-            if project_notifications:
-                await self.project_notification_gateway.bulk_insert(
-                    project_notifications,
-                )
-                await self.transaction_manager.commit()
+        if project_notifications:
+            await self.project_notification_gateway.bulk_insert(
+                project_notifications,
+            )
+            await self.transaction_manager.commit()
 
     async def notify_new_projects_to_channel(
         self,

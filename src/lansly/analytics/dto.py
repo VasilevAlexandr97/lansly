@@ -12,8 +12,7 @@ class DailyNewUserCount:
 @dataclass(frozen=True)
 class DailyNotificationCount:
     day: date
-    success_count: int
-    failed_count: int
+    count: int
 
 
 @dataclass(frozen=True)

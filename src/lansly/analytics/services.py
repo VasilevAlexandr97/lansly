@@ -96,22 +96,17 @@ class OverviewService:
             start_at=start_at,
             end_at=end_at,
         )
-        counts_by_day = {
-            row.day: (row.success_count, row.failed_count) for row in rows
-        }
+        counts_by_day = {row.day: row.count for row in rows}
 
-        points = []
-        for offset in range(days):
-            day = first_day + timedelta(days=offset)
-            success_count, failed_count = counts_by_day.get(day, (0, 0))
-            points.append(
-                DailyNotificationCount(
-                    day=day,
-                    success_count=success_count,
-                    failed_count=failed_count,
-                ),
+        return [
+            DailyNotificationCount(
+                day=day,
+                count=counts_by_day.get(day, 0),
             )
-        return points
+            for day in (
+                first_day + timedelta(days=offset) for offset in range(days)
+            )
+        ]
 
     async def get_active_category_follow_counts(
         self,

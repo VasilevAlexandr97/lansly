@@ -4,7 +4,6 @@ from uuid import uuid7
 from lansly.projects.consts import Marketplace
 from lansly.projects.dto import MarketplaceProject
 from lansly.projects.models import Customer, Project, ProjectCategory
-from lansly.users.models import User
 
 
 def category(**kwargs):
@@ -81,22 +80,6 @@ def marketplace_project(**kwargs):
                 "has_exact_budget": True,
                 "offers": 2,
                 "customer": None,
-            }
-            | kwargs
-        ),
-    )
-
-
-def user(**kwargs) -> User:
-    now = datetime(2020, 1, 1, tzinfo=UTC)
-    return User(
-        **(
-            {
-                "id": uuid7(),
-                "telegram_id": 123,
-                "is_telegram_unavailable": False,
-                "created_at": now,
-                "updated_at": now,
             }
             | kwargs
         ),

@@ -73,7 +73,6 @@ class SAOverviewGateway(OverviewGateway):
         stmt = select(func.count(ProjectNotification.sent_at)).where(
             ProjectNotification.sent_at >= start_at,
             ProjectNotification.sent_at < end_at,
-            ProjectNotification.error.is_(None),
         )
         result = await self.session.scalar(stmt)
         return result or 0
@@ -88,7 +87,6 @@ class SAOverviewGateway(OverviewGateway):
         ).where(
             ProjectNotification.sent_at >= start_at,
             ProjectNotification.sent_at < end_at,
-            ProjectNotification.error.is_(None),
         )
         result = await self.session.scalar(stmt)
         return result or 0
@@ -100,11 +98,7 @@ class SAOverviewGateway(OverviewGateway):
     ) -> list[DailyNotificationCount]:
         day = ProjectNotification.sent_at.op("AT TIME ZONE")("UTC").cast(Date)
         stmt = (
-            select(
-                day,
-                func.count().filter(ProjectNotification.error.is_(None)),
-                func.count().filter(ProjectNotification.error.is_not(None)),
-            )
+            select(day, func.count())
             .where(
                 ProjectNotification.sent_at >= start_at,
                 ProjectNotification.sent_at < end_at,
@@ -114,12 +108,8 @@ class SAOverviewGateway(OverviewGateway):
         )
         rows = (await self.session.execute(stmt)).all()
         return [
-            DailyNotificationCount(
-                day=row_day,
-                success_count=success_count,
-                failed_count=failed_count,
-            )
-            for row_day, success_count, failed_count in rows
+            DailyNotificationCount(day=row_day, count=count)
+            for row_day, count in rows
         ]
 
     async def get_active_category_follow_counts(

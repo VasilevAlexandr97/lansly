@@ -133,6 +133,7 @@ class UserCategoryFollowGateway:
         result = await self.session.execute(stmt)
         return dict(result.tuples().all())
 
+
     async def get_directions_with_follow_counts(
         self,
         user_id: UUID,
@@ -218,10 +219,7 @@ class UserCategoryFollowGateway:
                     UserCategoryFollow.is_active.is_(True),
                 ),
             )
-            .where(
-                User.is_telegram_unavailable.is_not(True),
-                UserCategoryFollow.category_id == category_id,
-            )
+            .where(UserCategoryFollow.category_id == category_id)
         )
         result = await self.session.scalars(stmt)
         return list(result.all())

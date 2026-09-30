@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Text
+from sqlalchemy import DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 
 from lansly.infra.database.base import Base
@@ -22,7 +22,6 @@ class ProjectNotification(Base):
         DateTime(timezone=True),
         nullable=False,
     )
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ChannelNotification(Base):
