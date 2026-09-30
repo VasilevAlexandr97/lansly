@@ -250,6 +250,7 @@ class SANotificationDailyStatsGateway(NotificationDailyStatsGateway):
             select(func.count()).where(
                 ProjectNotification.sent_at >= day_start,
                 ProjectNotification.sent_at < day_end,
+                ProjectNotification.error.is_(None),
             ),
         )
         ch_notif_count = await self.session.scalar(
@@ -263,13 +264,13 @@ class SANotificationDailyStatsGateway(NotificationDailyStatsGateway):
                 date=day,
                 metric=DailyMetricName.NOTIFICATIONS_COUNT,
                 dimension=ALL_DIMENSION,
-                value=notif_count,
+                value=notif_count or 0,
             ),
             MetricRow(
                 date=day,
                 metric=DailyMetricName.CHANNEL_NOTIFICATIONS_COUNT,
                 dimension=ALL_DIMENSION,
-                value=ch_notif_count,
+                value=ch_notif_count or 0,
             ),
         ]
 

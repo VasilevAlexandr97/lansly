@@ -42,12 +42,16 @@ class TelegramAuth:
 
     async def auth(self, source: str | None = None) -> TelegramAuthResultDTO:
         try:
-            user = await self.id_provider.get_current_user()
+            current_user = await self.id_provider.get_current_user()
+            user = await self.user_gateway.get_by_id(current_user.id)
+            if user and user.is_telegram_unavailable:
+                user.mark_telegram_available()
+                await self.transaction_manager.commit()
             return TelegramAuthResultDTO(
-                user_id=user.id,
+                user_id=current_user.id,
                 is_new=False,
-                is_pro=user.is_pro,
-                is_admin=user.is_admin,
+                is_pro=current_user.is_pro,
+                is_admin=current_user.is_admin,
             )
         except AuthenticationError:
             pass
@@ -62,6 +66,7 @@ class TelegramAuth:
             id=uuid7(),
             telegram_id=telegram_id,
             source=source,
+            is_telegram_unavailable=False,
             created_at=now,
             updated_at=now,
         )
@@ -79,12 +84,12 @@ class TelegramAuth:
         except UserAlreadyExistsError:
             await self.transaction_manager.rollback()
             logger.info(f"User already exists: {new_user!r}")
-            user = await self.id_provider.get_current_user()
+            current_user = await self.id_provider.get_current_user()
             return TelegramAuthResultDTO(
-                user_id=user.id,
+                user_id=current_user.id,
                 is_new=False,
-                is_pro=user.is_pro,
-                is_admin=user.is_admin,
+                is_pro=current_user.is_pro,
+                is_admin=current_user.is_admin,
             )
         except CreateUserError:
             await self.transaction_manager.rollback()

@@ -67,15 +67,6 @@ async def count_notification_recipients(request: Request) -> int:
         return await service.count_notification_recipients(days)
 
 
-async def counts_daily_notifications(request: Request) -> list[dict]:
-    container: AsyncContainer = request.state.dishka_container
-    days = get_days(request)
-    async with container() as req_c:
-        service = await req_c.get(OverviewService)
-        points = await service.get_notification_counts_by_day(days)
-        return [{"name": "day", "data": [point.count for point in points]}]
-
-
 async def get_category_follow_counts(request: Request) -> CategoryFollowCounts:
     cached = getattr(request.state, "category_follow_counts", None)
     if cached is not None:
@@ -254,8 +245,12 @@ async def build_notification_chart(request: Request) -> ChartWidget:
     async def series(_: Request) -> list[dict]:
         return [
             {
-                "name": "Уведомления",
-                "data": [point.count for point in points],
+                "name": "Успешные",
+                "data": [point.success_count for point in points],
+            },
+            {
+                "name": "Неуспешные",
+                "data": [point.failed_count for point in points],
             },
         ]
 
@@ -264,6 +259,7 @@ async def build_notification_chart(request: Request) -> ChartWidget:
         chart_type="line",
         series_callback=series,
         options={
+            "colors": ["#2fb344", "#d63939"],
             "xaxis": {
                 "categories": [
                     point.day.strftime("%d.%m") for point in points

@@ -27,6 +27,7 @@ class SAProjectNotificationGateway(ProjectNotificationGateway):
                 "project_id": notification.project_id,
                 "user_id": notification.user_id,
                 "sent_at": notification.sent_at,
+                "error": notification.error,
             }
             for notification in notifications
         ]

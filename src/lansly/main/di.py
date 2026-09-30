@@ -589,7 +589,7 @@ class NotificationProvider(Provider):
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
         url_builder: MarketplaceUrlBuilder,
-        redis: Redis,
+        lock_manager: DistributedLockManager,
         config: Config,
     ) -> ProjectNotificationService:
         return ProjectNotificationService(
@@ -602,7 +602,7 @@ class NotificationProvider(Provider):
             telegram_notifier=telegram_notifier,
             transaction_manager=transaction_manager,
             url_builder=url_builder,
-            redis=redis,
+            lock_manager=lock_manager,
             channel_id=config.telegram_channel_id,
         )
 

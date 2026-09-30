@@ -60,6 +60,9 @@ class FakeProjectGateway:
         self.existing_external_ids = existing_external_ids or set()
         self.bulk_inserted: list[Project] = []
         self.bulk_insert_calls = 0
+        self.get_projects_by_ids_calls: list[
+            tuple[list[UUID], dict[str, bool]]
+        ] = []
 
     async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
         self.bulk_insert_calls += 1
@@ -76,6 +79,23 @@ class FakeProjectGateway:
             - self.existing_external_ids
             - {p.external_id for p in self.bulk_inserted if p.source == source}
         )
+
+    async def get_projects_by_ids(
+        self,
+        project_ids: list[UUID],
+        with_category: bool = False,
+        with_customer: bool = False,
+    ) -> list[Project]:
+        self.get_projects_by_ids_calls.append(
+            (
+                project_ids,
+                {
+                    "with_category": with_category,
+                    "with_customer": with_customer,
+                },
+            ),
+        )
+        return [p for p in self.bulk_inserted if p.id in project_ids]
 
 
 class FakeCustomerGateway:
