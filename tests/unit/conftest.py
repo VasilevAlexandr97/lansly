@@ -1,6 +1,16 @@
 import pytest
 
 from fakes.infra import FakeDistributedLockManager, FakeTransactionManager
+from fakes.notifications import (
+    FakeChannelNotificationGateway,
+    FakeProjectNotificationGateway,
+    FakeTelegramNotifier,
+)
+from fakes.preferences import (
+    FakeUserCategoryFollowGateway,
+    FakeUserPriceFilterGateway,
+    FakeUserStopWordsGateway,
+)
 from fakes.projects import (
     FakeCustomerGateway,
     FakeMarketPlaceClient,
@@ -11,7 +21,6 @@ from fakes.projects import (
 from fakes.users import FakeUserGateway, FakeUserRoleGateway
 
 from lansly.common.password_hasher_bcrypt import PasswordHasherBcrypt
-from lansly.projects.consts import Marketplace
 
 
 @pytest.fixture
@@ -32,6 +41,11 @@ def hasher() -> PasswordHasherBcrypt:
 @pytest.fixture
 def marketplace_client() -> FakeMarketPlaceClient:
     return FakeMarketPlaceClient()
+
+
+@pytest.fixture
+def notifier() -> FakeTelegramNotifier:
+    return FakeTelegramNotifier()
 
 
 @pytest.fixture
@@ -62,3 +76,28 @@ def customer_gateway() -> FakeCustomerGateway:
 @pytest.fixture
 def project_collector() -> FakeProjectCollector:
     return FakeProjectCollector()
+
+
+@pytest.fixture
+def follow_gateway() -> FakeUserCategoryFollowGateway:
+    return FakeUserCategoryFollowGateway()
+
+
+@pytest.fixture
+def stop_words_gateway() -> FakeUserStopWordsGateway:
+    return FakeUserStopWordsGateway()
+
+
+@pytest.fixture
+def price_filter_gateway() -> FakeUserPriceFilterGateway:
+    return FakeUserPriceFilterGateway()
+
+
+@pytest.fixture
+def notification_gateway() -> FakeProjectNotificationGateway:
+    return FakeProjectNotificationGateway()
+
+
+@pytest.fixture
+def channel_notification_gateway() -> FakeChannelNotificationGateway:
+    return FakeChannelNotificationGateway()

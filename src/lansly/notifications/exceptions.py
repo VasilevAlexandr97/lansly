@@ -1,0 +1,2 @@
+class RecipientUnavailableError(Exception):
+    pass
