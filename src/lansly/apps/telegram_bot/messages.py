@@ -38,30 +38,44 @@ def make_hashtag(title: str) -> str:
 
 
 def kwork_project_message(project: Project, links: ProjectLinks) -> str:
+    title = html.escape(project.title)
+    category_title = html.escape(project.category.title)
+    description = html.escape(
+        truncate_project_description(project.description),
+    )
+    project_url = html.escape(links.project_url, quote=True)
+
     customer_block = ""
     if project.customer:
-        username = project.customer.username
+        username = html.escape(project.customer.username)
+        customer_url = html.escape(links.customer_url or "", quote=True)
         customer_block = (
             f"👤 Заказчик\n"
             f"• Проектов: {project.customer.user_projects_count}\n"
             f"• Нанято: {project.customer.user_hired_percent}%\n"
-            f"• Профиль: <a href='{links.customer_url}'>{username}</a>\n\n"
+            f"• Профиль: <a href='{customer_url}'>{username}</a>\n\n"
         )
     return (
         f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.KWORK]}</b>\n\n"
-        f"📂 {project.category.title}\n\n"
-        f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
+        f"📂 {category_title}\n\n"
+        f"📌 <a href='{project_url}'><b>{title}</b></a>\n\n"
         f"💰 Бюджет\n"
         f"• Желаемый: {project.price} ₽\n"
         f"• Допустимый: {project.possible_price_limit} ₽\n\n"
         f"{customer_block}"
-        f"📝 {truncate_project_description(project.description)}\n\n"
+        f"📝 {description}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
-        f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
+        f"🔗 <a href='{project_url}'>Ссылка на проект</a>"
     )
 
 
 def flru_project_message(project: Project, links: ProjectLinks) -> str:
+    title = html.escape(project.title)
+    category_title = html.escape(project.category.title)
+    description = html.escape(
+        truncate_project_description(project.description),
+    )
+    project_url = html.escape(links.project_url, quote=True)
     budget = (
         f"{project.price} ₽"
         if project.has_exact_budget
@@ -70,12 +84,12 @@ def flru_project_message(project: Project, links: ProjectLinks) -> str:
 
     return (
         f"🔔 Новый проект на <b>{MARKETPLACE_LABELS[Marketplace.FL]}</b>\n\n"
-        f"📂 {project.category.title}\n\n"
-        f"📌 <a href='{links.project_url}'><b>{project.title}</b></a>\n\n"
+        f"📂 {category_title}\n\n"
+        f"📌 <a href='{project_url}'><b>{title}</b></a>\n\n"
         f"💰 Бюджет: {budget}\n\n"
-        f"📝 {truncate_project_description(project.description)}\n\n"
+        f"📝 {description}\n\n"
         f"{make_hashtag(project.category.title)}\n\n"
-        f"🔗 <a href='{links.project_url}'>Ссылка на проект</a>"
+        f"🔗 <a href='{project_url}'>Ссылка на проект</a>"
     )
 
 

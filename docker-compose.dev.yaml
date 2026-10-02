@@ -111,6 +111,28 @@ services:
       - ./src:/app/src
     command: uv run taskiq worker lansly.main.worker:broker lansly.background_tasks.tasks --workers 1 --log-level DEBUG
 
+  notification_worker:
+    <<: *app-build
+    container_name: lansly_notification_worker
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    volumes:
+      - ./src:/app/src
+    command: >-
+      uv run taskiq worker
+      lansly.main.notification_worker:notification_broker
+      lansly.background_tasks.notification_tasks
+      --workers 1
+      --max-async-tasks 1
+      --max-prefetch 1
+      --log-level DEBUG
+
   scheduler:
     <<: *app-build
     container_name: lansly_scheduler

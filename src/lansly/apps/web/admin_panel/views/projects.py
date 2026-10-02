@@ -2,7 +2,12 @@ from sqlalchemy.orm.attributes import instance_state
 from starlette_admin import ComputedField
 from starlette_admin.contrib.sqla import ModelView
 
-from lansly.projects.models import Customer, Project, ProjectProposal
+from lansly.projects.models import (
+    Customer,
+    Project,
+    ProjectCategory,
+    ProjectProposal,
+)
 
 
 class CustomerUsernameField(ComputedField):
@@ -13,10 +18,22 @@ class CustomerUsernameField(ComputedField):
         return None
 
 
+class ProjectCategoryView(ModelView):
+    fields = [  # noqa: RUF012
+        ProjectCategory.id,
+        ProjectCategory.external_id,
+        ProjectCategory.source,
+        ProjectCategory.title,
+        ProjectCategory.parent_id,
+    ]
+
 
 class ProjectView(ModelView):
     fields = [  # noqa: RUF012
         Project.id,
+        Project.external_id,
+        Project.category_id,
+        Project.category,
         Project.source,
         Project.title,
         Project.description,
@@ -26,8 +43,9 @@ class ProjectView(ModelView):
         CustomerUsernameField("username"),
         Project.offers,
         Project.created_at,
+        Project.updated_at,
     ]
-    fields_default_sort = [(Project.created_at, True)]  # noqa: RUF012
+    fields_default_sort = [(Project.updated_at, True)]  # noqa: RUF012
 
 
 class CustomerView(ModelView):

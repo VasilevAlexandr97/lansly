@@ -42,7 +42,7 @@ class ProjectCategoryGateway(Protocol):
 
 class ProjectGateway(Protocol):
     @abstractmethod
-    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
+    async def bulk_upsert(self, projects: list[Project]) -> list[UUID]:
         raise NotImplementedError
 
     @abstractmethod
@@ -59,6 +59,14 @@ class ProjectGateway(Protocol):
         project_ids: list[UUID],
         with_category: bool = False,
         with_customer: bool = False,
+    ) -> list[Project]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_projects_by_external_ids(
+        self,
+        external_ids: list[str],
+        source: str,
     ) -> list[Project]:
         raise NotImplementedError
 

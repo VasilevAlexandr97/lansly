@@ -7,7 +7,6 @@ from dishka.integrations.taskiq import FromDishka, inject
 
 from lansly.infra.taskiq.broker import broker
 from lansly.notifications.services import (
-    ProjectNotificationService,
     ProjectProposalNotificationService,
     SubscriptionNotificationService,
 )
@@ -43,31 +42,12 @@ logger = logging.getLogger(__name__)
 async def monitoring_projects(
     source: Marketplace,
     service: FromDishka[ProjectSyncService],
-):
-    inserted_ids = await service.sync(source)
-    logger.info(f"COUNT NEW PROJECTS: {len(inserted_ids)} FROM {source}")
-    if inserted_ids:
-        await notify_new_projects.kiq(inserted_ids)
-        await notify_new_projects_to_channel.kiq(inserted_ids)
-
-
-@broker.task()
-@inject
-async def notify_new_projects(
-    new_projects: list[UUID],
-    service: FromDishka[ProjectNotificationService],
-):
-    await service.notify_new_projects(new_projects)
-
-
-@broker.task()
-@inject
-async def notify_new_projects_to_channel(
-    new_projects: list[UUID],
-    service: FromDishka[ProjectNotificationService],
-):
-    await service.notify_new_projects_to_channel(
-        project_ids=new_projects,
+) -> None:
+    saved_ids = await service.sync(source)
+    logger.info(
+        "Saved %s new or updated projects from %s",
+        len(saved_ids),
+        source,
     )
 
 

@@ -10,6 +10,7 @@ class ProjectNotificationView(ModelView):
         ProjectNotification.user_id,
         ProjectNotification.sent_at,
         ProjectNotification.error,
+        ProjectNotification.project_updated_at,
     ]
     fields_default_sort = [(ProjectNotification.sent_at, True)]  # noqa: RUF012
 

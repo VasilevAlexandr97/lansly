@@ -61,6 +61,7 @@ def project(**kwargs):
                 "has_exact_budget": True,
                 "offers": 3,
                 "created_at": datetime.now(UTC),
+                "updated_at": datetime.now(UTC),
             }
             | kwargs
         ),

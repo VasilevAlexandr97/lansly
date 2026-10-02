@@ -1,17 +1,15 @@
 # ruff: noqa: PLR2004, SLF001
 import logging
 
+from datetime import UTC, datetime
+
 import pytest
 
 from fakes.factories import (
     project as make_project,
     user as make_user,
 )
-from fakes.infra import (
-    FakeDistributedLockManager,
-    FakeTransactionManager,
-    LockCall,
-)
+from fakes.infra import FakeTransactionManager
 from fakes.notifications import (
     FakeChannelNotificationGateway,
     FakeProjectNotificationGateway,
@@ -24,12 +22,37 @@ from fakes.preferences import (
 )
 from fakes.projects import FakeProjectGateway
 
-from lansly.notifications.exceptions import RecipientUnavailableError
+from lansly.notifications.exceptions import (
+    ProjectNotificationDeliveryError,
+    RecipientUnavailableError,
+)
 from lansly.notifications.services import ProjectNotificationService
 from lansly.projects.models import Project
 from lansly.users.models import User
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_updated_project_notifies_user_once_per_update(
+    *,
+    service: ProjectNotificationService,
+    project: Project,
+    notification_gateway: FakeProjectNotificationGateway,
+    notifier: FakeTelegramNotifier,
+):
+    await service.notify_new_projects([project.id])
+    await service.notify_new_projects([project.id])
+    assert len(notifier.sent) == 1
+
+    project.updated_at = datetime.now(UTC)
+    await service.notify_new_projects([project.id])
+    await service.notify_new_projects([project.id])
+    assert len(notifier.sent) == 2
+    assert len(notification_gateway.rows) == 1
+    assert notification_gateway.rows[0].sent_at >= project.updated_at
+    assert (
+        notification_gateway.rows[0].project_updated_at == project.updated_at
+    )
 
 
 @pytest.mark.parametrize(
@@ -211,6 +234,7 @@ async def test_user_success_saved(
     assert row.sent_at is not None
     assert row.sent_at.tzinfo is not None
     assert row.error is None
+    assert row.project_updated_at == project.updated_at
     assert txn.commits == 1
 
 
@@ -219,20 +243,28 @@ async def test_user_send_failure(
     service: ProjectNotificationService,
     project: Project,
     user: User,
+    project_gateway: FakeProjectGateway,
     follow_gateway: FakeUserCategoryFollowGateway,
     notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
     txn: FakeTransactionManager,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # Проверяет, что сбой отправки одному пользователю не мешает уведомить
-    # другого и сохранить его отправку.
+    # После сбоя продолжаем все проекты, сохраняем результаты и при повторе
+    # отправляем только тем, кому не удалось доставить сообщение.
     notifier.errors[user.telegram_id] = RuntimeError("Telegram unavailable")
     other = make_user(telegram_id=456)
     follow_gateway.users_by_category[project.category_id].append(other)
-    await service.notify_new_projects([project.id])
-    assert [s["chat_id"] for s in notifier.sent] == [456]
-    failed, succeeded = notification_gateway.rows
+    other_project = make_project(category=project.category, external_id="43")
+    project_gateway.bulk_inserted.append(other_project)
+    project_ids = [project.id, other_project.id]
+
+    with pytest.raises(ProjectNotificationDeliveryError):
+        await service.notify_new_projects(project_ids)
+
+    assert [s["chat_id"] for s in notifier.sent] == [456, 456]
+    assert len(notification_gateway.rows) == 4
+    failed, succeeded = notification_gateway.rows[:2]
     assert failed.user_id == user.id
     assert failed.sent_at is not None
     assert failed.error == "Telegram unavailable"
@@ -240,13 +272,125 @@ async def test_user_send_failure(
     assert succeeded.sent_at is not None
     assert succeeded.error is None
     assert not user.is_telegram_unavailable
-    assert txn.commits == 1
+    assert txn.commits == 2
     assert any(
         record.name == "lansly.notifications.services"
         and record.levelno == logging.ERROR
         and record.exc_info is not None
         for record in caplog.records
     )
+
+    notifier.errors.clear()
+    await service.notify_new_projects(project_ids)
+    assert [attempt["chat_id"] for attempt in notifier.attempts] == [
+        user.telegram_id,
+        other.telegram_id,
+        user.telegram_id,
+        other.telegram_id,
+        user.telegram_id,
+        user.telegram_id,
+    ]
+    assert all(row.error is None for row in notification_gateway.rows)
+    assert len(notification_gateway.rows) == 4
+    assert txn.commits == 4
+
+    await service.notify_new_projects(project_ids)
+    assert len(notifier.attempts) == 6
+    assert txn.commits == 4
+
+
+async def test_new_version_during_delivery_is_not_skipped(
+    *,
+    service: ProjectNotificationService,
+    project: Project,
+    project_gateway: FakeProjectGateway,
+    follow_gateway: FakeUserCategoryFollowGateway,
+    notification_gateway: FakeProjectNotificationGateway,
+    notifier: FakeTelegramNotifier,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    updated_project = make_project(
+        id=project.id,
+        external_id=project.external_id,
+        category=project.category,
+        title="Обновлённый проект",
+    )
+    get_users = follow_gateway.get_users_followed_to_category
+
+    async def update_project_before_sending(category_id):
+        updated_project.updated_at = datetime.now(UTC)
+        project_gateway.bulk_inserted[:] = [updated_project]
+        return await get_users(category_id)
+
+    monkeypatch.setattr(
+        follow_gateway,
+        "get_users_followed_to_category",
+        update_project_before_sending,
+    )
+    await service.notify_new_projects([project.id])
+    (notification,) = notification_gateway.rows
+    assert notification.sent_at >= updated_project.updated_at
+    assert notification.project_updated_at == project.updated_at
+
+    monkeypatch.setattr(
+        follow_gateway,
+        "get_users_followed_to_category",
+        get_users,
+    )
+    await service.notify_new_projects([project.id])
+    await service.notify_new_projects([project.id])
+
+    assert len(notifier.sent) == 2
+    assert project.title in notifier.sent[0]["text"]
+    assert updated_project.title in notifier.sent[1]["text"]
+    assert (
+        notification_gateway.rows[0].project_updated_at
+        == updated_project.updated_at
+    )
+
+
+async def test_completed_project_is_committed_before_next_project_fails(
+    *,
+    service: ProjectNotificationService,
+    project: Project,
+    project_gateway: FakeProjectGateway,
+    follow_gateway: FakeUserCategoryFollowGateway,
+    notification_gateway: FakeProjectNotificationGateway,
+    notifier: FakeTelegramNotifier,
+    txn: FakeTransactionManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other = make_project(category=project.category, external_id="43")
+    project_gateway.bulk_inserted.append(other)
+    project_ids = [project.id, other.id]
+    get_users = follow_gateway.get_users_followed_to_category
+
+    async def fail_second_project(category_id):
+        if follow_gateway.requested_categories:
+            raise RuntimeError("Subscription lookup failed")
+        return await get_users(category_id)
+
+    monkeypatch.setattr(
+        follow_gateway,
+        "get_users_followed_to_category",
+        fail_second_project,
+    )
+    with pytest.raises(RuntimeError, match="Subscription lookup failed"):
+        await service.notify_new_projects(project_ids)
+
+    assert txn.commits == 1
+    assert len(notification_gateway.rows) == 1
+    assert notification_gateway.rows[0].project_id == project.id
+
+    monkeypatch.setattr(
+        follow_gateway,
+        "get_users_followed_to_category",
+        get_users,
+    )
+    await service.notify_new_projects(project_ids)
+    assert len(notifier.sent) == 2
+    assert txn.commits == 2
+    assert [row.project_id for row in notification_gateway.rows] == project_ids
 
 
 @pytest.mark.parametrize("empty_projects", [True, False])
@@ -265,26 +409,6 @@ async def test_user_no_deliveries(
     await service.notify_new_projects([] if empty_projects else [project.id])
     assert not notification_gateway.rows
     assert txn.commits == 0
-
-
-async def test_user_lock(
-    *,
-    service: ProjectNotificationService,
-    project: Project,
-    lock_manager: FakeDistributedLockManager,
-) -> None:
-    # Проверяет получение и освобождение блокировки при отправке уведомлений
-    # пользователям.
-    await service.notify_new_projects([project.id])
-    assert lock_manager.calls == [
-        LockCall(
-            key="project_notification",
-            timeout=600,
-            blocking=True,
-            blocking_timeout=None,
-        ),
-    ]
-    assert lock_manager.enter_count == lock_manager.exit_count == 1
 
 
 @pytest.mark.parametrize(
@@ -461,21 +585,3 @@ async def test_user_becomes_unavailable(
         and record.levelno >= logging.ERROR
         for record in caplog.records
     )
-
-
-async def test_user_lock_not_acquired(
-    *,
-    service: ProjectNotificationService,
-    project: Project,
-    lock_manager: FakeDistributedLockManager,
-    notifier: FakeTelegramNotifier,
-    notification_gateway: FakeProjectNotificationGateway,
-    txn: FakeTransactionManager,
-) -> None:
-    lock_manager.acquired = False
-    with pytest.raises(RuntimeError, match="lock was not acquired"):
-        await service.notify_new_projects([project.id])
-    assert not notifier.attempts
-    assert not notification_gateway.rows
-    assert txn.commits == 0
-    assert lock_manager.enter_count == lock_manager.exit_count == 1

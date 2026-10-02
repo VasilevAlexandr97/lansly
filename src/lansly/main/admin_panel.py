@@ -26,6 +26,7 @@ from lansly.apps.web.admin_panel.views.notifications import (
 from lansly.apps.web.admin_panel.views.overview import OverviewView
 from lansly.apps.web.admin_panel.views.projects import (
     CustomerView,
+    ProjectCategoryView,
     ProjectProposalView,
     ProjectView,
 )
@@ -39,7 +40,12 @@ from lansly.main.di import (
     create_container,
 )
 from lansly.notifications.models import ProjectNotification
-from lansly.projects.models import Customer, Project, ProjectProposal
+from lansly.projects.models import (
+    Customer,
+    Project,
+    ProjectCategory,
+    ProjectProposal,
+)
 from lansly.users.models import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -64,6 +70,7 @@ def setup_middlewares(app: FastAPI, config: Config) -> None:
 def setup_views(admin: Admin) -> None:
     admin.add_view(UserView(User))
     admin.add_view(UserRoleView(UserRole))
+    admin.add_view(ProjectCategoryView(ProjectCategory))
     admin.add_view(ProjectView(Project))
     admin.add_view(CustomerView(Customer))
     admin.add_view(ProjectProposalView(ProjectProposal))

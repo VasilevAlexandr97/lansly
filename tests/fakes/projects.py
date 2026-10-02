@@ -56,29 +56,57 @@ class FakeProjectCategoryGateway:
 
 
 class FakeProjectGateway:
-    def __init__(self, existing_external_ids: set[str] | None = None):
-        self.existing_external_ids = existing_external_ids or set()
+    def __init__(self):
+        self.existing: list[Project] = []
         self.bulk_inserted: list[Project] = []
-        self.bulk_insert_calls = 0
+        self.bulk_upsert_calls = 0
         self.get_projects_by_ids_calls: list[
             tuple[list[UUID], dict[str, bool]]
         ] = []
 
-    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
-        self.bulk_insert_calls += 1
-        self.bulk_inserted.extend(projects)
-        return [project.id for project in projects]
+    async def bulk_upsert(self, projects: list[Project]) -> list[UUID]:
+        self.bulk_upsert_calls += 1
+        saved_ids = []
+        for project in projects:
+            existing = next(
+                (
+                    saved
+                    for saved in [*self.existing, *self.bulk_inserted]
+                    if (saved.source, saved.external_id)
+                    == (project.source, project.external_id)
+                ),
+                None,
+            )
+            if existing is None:
+                self.bulk_inserted.append(project)
+                saved_ids.append(project.id)
+                continue
+            for field in (
+                "title",
+                "description",
+                "price",
+                "possible_price_limit",
+                "has_exact_budget",
+                "category_id",
+                "customer_id",
+                "offers",
+                "updated_at",
+                "expires_at",
+            ):
+                setattr(existing, field, getattr(project, field))
+            saved_ids.append(existing.id)
+        return saved_ids
 
-    async def get_missing_external_ids(
+    async def get_projects_by_external_ids(
         self,
         external_ids: list[str],
         source: str,
-    ) -> set[str]:
-        return (
-            set(external_ids)
-            - self.existing_external_ids
-            - {p.external_id for p in self.bulk_inserted if p.source == source}
-        )
+    ) -> list[Project]:
+        return [
+            project
+            for project in [*self.existing, *self.bulk_inserted]
+            if project.source == source and project.external_id in external_ids
+        ]
 
     async def get_projects_by_ids(
         self,

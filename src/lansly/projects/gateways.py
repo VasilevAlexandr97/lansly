@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -89,7 +89,7 @@ class SAProjectGateway(ProjectGateway):
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def bulk_insert(self, projects: list[Project]) -> list[UUID]:
+    async def bulk_upsert(self, projects: list[Project]) -> list[UUID]:
         if not projects:
             return []
         values = [
@@ -106,17 +106,36 @@ class SAProjectGateway(ProjectGateway):
                 "description": project.description,
                 "offers": project.offers,
                 "created_at": project.created_at,
+                "updated_at": project.updated_at,
+                "expires_at": project.expires_at,
             }
             for project in projects
         ]
-        stmt = (
-            pg_insert(Project)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=["external_id", "source"],
-            )
-            .returning(Project.id)
-        )
+        stmt = pg_insert(Project).values(values)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["external_id", "source"],
+            set_={
+                "title": stmt.excluded.title,
+                "description": stmt.excluded.description,
+                "price": stmt.excluded.price,
+                "possible_price_limit": stmt.excluded.possible_price_limit,
+                "has_exact_budget": stmt.excluded.has_exact_budget,
+                "category_id": stmt.excluded.category_id,
+                "customer_id": stmt.excluded.customer_id,
+                "offers": stmt.excluded.offers,
+                "updated_at": stmt.excluded.updated_at,
+                "expires_at": stmt.excluded.expires_at,
+            },
+            where=or_(
+                Project.title.is_distinct_from(stmt.excluded.title),
+                Project.description.is_distinct_from(stmt.excluded.description),
+                Project.price.is_distinct_from(stmt.excluded.price),
+                Project.expires_at.is_distinct_from(
+                    stmt.excluded.expires_at,
+                ),
+            ),
+        ).returning(Project.id)
+
         return list(await self.session.scalars(stmt))
 
     async def get_missing_external_ids(
@@ -144,6 +163,18 @@ class SAProjectGateway(ProjectGateway):
             stmt = stmt.options(selectinload(Project.category))
         if with_customer:
             stmt = stmt.options(selectinload(Project.customer))
+        result = await self.session.scalars(stmt)
+        return list(result.all())
+
+    async def get_projects_by_external_ids(
+        self,
+        external_ids: list[str],
+        source: str,
+    ) -> list[Project]:
+        stmt = select(Project).where(
+            Project.external_id.in_(external_ids),
+            Project.source == source,
+        )
         result = await self.session.scalars(stmt)
         return list(result.all())
 

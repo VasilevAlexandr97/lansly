@@ -66,6 +66,7 @@ from lansly.infra.polza.client import PolzaClient
 from lansly.infra.polza.limiter import PolzaRateLimiter
 from lansly.infra.redis.lock_manager import RedisDistributedLockManager
 from lansly.infra.taskiq.queue import (
+    TaskiqProjectNotificationQueue,
     TaskiqProposalGeneratedNotificationQueue,
     TaskiqProposalGenerationQueue,
     TaskiqSubscriptionActivatedNotificationQueue,
@@ -82,6 +83,7 @@ from lansly.notifications.gateways import (
 from lansly.notifications.interfaces import (
     ChannelNotificationGateway,
     ProjectNotificationGateway,
+    ProjectNotificationQueue,
     ProposalGeneratedNotificationQueue,
     SubscriptionActivatedNotificationQueue,
     SubscriptionRenewalNotificationQueue,
@@ -489,7 +491,7 @@ class ProjectProvider(Provider):
     )
 
     @provide(scope=Scope.REQUEST)
-    def get_project_sync_service(
+    def get_project_sync_service(  # noqa: PLR0917
         self,
         integrations: Sequence[MarketplaceIntegration],
         category_gateway: ProjectCategoryGateway,
@@ -497,6 +499,7 @@ class ProjectProvider(Provider):
         customer_gateway: CustomerGateway,
         transaction_manager: TransactionManager,
         lock_manager: DistributedLockManager,
+        notification_queue: ProjectNotificationQueue,
     ) -> ProjectSyncService:
         return ProjectSyncService(
             integrations=integrations,
@@ -505,6 +508,7 @@ class ProjectProvider(Provider):
             customer_gateway=customer_gateway,
             transaction_manager=transaction_manager,
             lock_manager=lock_manager,
+            notification_queue=notification_queue,
         )
 
     project_proposal_request_service = provide(
@@ -566,6 +570,12 @@ class PreferenceProvider(Provider):
 
 
 class NotificationProvider(Provider):
+    project_notification_queue = provide(
+        TaskiqProjectNotificationQueue,
+        scope=Scope.REQUEST,
+        provides=ProjectNotificationQueue,
+    )
+
     project_notification_gateway = provide(
         SAProjectNotificationGateway,
         scope=Scope.REQUEST,
@@ -589,7 +599,6 @@ class NotificationProvider(Provider):
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
         url_builder: MarketplaceUrlBuilder,
-        lock_manager: DistributedLockManager,
         config: Config,
     ) -> ProjectNotificationService:
         return ProjectNotificationService(
@@ -602,7 +611,6 @@ class NotificationProvider(Provider):
             telegram_notifier=telegram_notifier,
             transaction_manager=transaction_manager,
             url_builder=url_builder,
-            lock_manager=lock_manager,
             channel_id=config.telegram_channel_id,
         )
 
