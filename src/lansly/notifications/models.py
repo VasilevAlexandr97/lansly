@@ -22,6 +22,10 @@ class ProjectNotification(Base):
         DateTime(timezone=True),
         nullable=False,
     )
+    project_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

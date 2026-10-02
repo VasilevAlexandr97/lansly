@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Self
 
@@ -37,6 +38,7 @@ class MarketplaceProject:
     description: str
     offers: int
     customer: "MarketplaceCustomer | None"
+    expires_at: datetime | None = None
 
 
 @dataclass

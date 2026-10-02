@@ -52,6 +52,21 @@ services:
     restart: unless-stopped
     command: uv run taskiq worker lansly.main.worker:broker lansly.background_tasks.tasks --workers 1
 
+  notification_worker:
+    <<: *app-build
+    stop_grace_period: 60s
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    command: >-
+      uv run taskiq worker
+      lansly.main.notification_worker:notification_broker
+      lansly.background_tasks.notification_tasks
+      --workers 1
+      --max-async-tasks 1
+      --max-prefetch 1
+
   scheduler:
     <<: *app-build
     stop_grace_period: 30s

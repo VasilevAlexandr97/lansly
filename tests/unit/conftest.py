@@ -4,6 +4,7 @@ from fakes.infra import FakeDistributedLockManager, FakeTransactionManager
 from fakes.notifications import (
     FakeChannelNotificationGateway,
     FakeProjectNotificationGateway,
+    FakeProjectNotificationQueue,
     FakeTelegramNotifier,
 )
 from fakes.preferences import (
@@ -74,11 +75,6 @@ def customer_gateway() -> FakeCustomerGateway:
 
 
 @pytest.fixture
-def project_collector() -> FakeProjectCollector:
-    return FakeProjectCollector()
-
-
-@pytest.fixture
 def follow_gateway() -> FakeUserCategoryFollowGateway:
     return FakeUserCategoryFollowGateway()
 
@@ -101,3 +97,13 @@ def notification_gateway() -> FakeProjectNotificationGateway:
 @pytest.fixture
 def channel_notification_gateway() -> FakeChannelNotificationGateway:
     return FakeChannelNotificationGateway()
+
+
+@pytest.fixture
+def project_collector() -> FakeProjectCollector:
+    return FakeProjectCollector()
+
+
+@pytest.fixture
+def notification_queue() -> FakeProjectNotificationQueue:
+    return FakeProjectNotificationQueue()

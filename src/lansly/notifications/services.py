@@ -15,10 +15,12 @@ from lansly.apps.telegram_bot.messages import (
     generating_proposal_failed_message,
     kwork_project_message,
 )
-from lansly.common.interfaces.lock_manager import DistributedLockManager
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.infra.telegram.telegram_notifier import TelegramNotifier
-from lansly.notifications.exceptions import RecipientUnavailableError
+from lansly.notifications.exceptions import (
+    ProjectNotificationDeliveryError,
+    RecipientUnavailableError,
+)
 from lansly.notifications.interfaces import (
     ChannelNotificationGateway,
     ProjectNotificationGateway,
@@ -57,7 +59,6 @@ class ProjectNotificationService:
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
         url_builder: MarketplaceUrlBuilder,
-        lock_manager: DistributedLockManager,
         channel_id: int | None = None,
     ):
         self.project_gateway = project_gateway
@@ -69,7 +70,6 @@ class ProjectNotificationService:
         self.telegram_notifier = telegram_notifier
         self.transaction_manager = transaction_manager
         self.url_builder = url_builder
-        self.lock_manager = lock_manager
         self.channel_id = channel_id
 
     def _contains_stop_word(self, text: str, stop_words: list[str]) -> bool:
@@ -89,7 +89,10 @@ class ProjectNotificationService:
             return flru_project_message(project, links)
         raise ValueError("Project source not supported")
 
-    async def notify_new_projects(self, project_ids: list[UUID]):
+    async def notify_new_projects(  # noqa: C901, PLR0912
+        self,
+        project_ids: list[UUID],
+    ) -> None:
         projects = await self.project_gateway.get_projects_by_ids(
             project_ids,
             with_category=True,
@@ -97,91 +100,102 @@ class ProjectNotificationService:
         )
         logger.info(f"NOTIFY NEW PROJECTS: {projects}")
 
-        project_notifications = []
+        has_delivery_errors = False
 
-        async with self.lock_manager.try_lock(
-            key="project_notification",
-            timeout=600,
-            blocking=True,
-        ) as acquired:
-            if not acquired:
-                raise RuntimeError(
-                    "Project notification lock was not acquired",
+        for project in projects:
+            if project.category_id is None:
+                continue
+            project_notifications: list[ProjectNotification] = []
+            users = await self.follow_gateway.get_users_followed_to_category(
+                project.category_id,
+            )
+            user_ids = [user.id for user in users]
+            stop_words_map = (
+                await self.stop_words_gateway.get_stop_words_by_user_ids(
+                    user_ids,
                 )
-
-            for project in projects:
-                if project.category_id is None:
+            )
+            price_filter_map = (
+                await self.price_filter_gateway.get_filter_by_user_ids(
+                    user_ids,
+                )
+            )
+            project_text = f"{project.title} {project.description}"
+            for user in users:
+                if user.telegram_id is None:
                     continue
-                users = (
-                    await self.follow_gateway.get_users_followed_to_category(
-                        project.category_id,
+                if user.is_telegram_unavailable:
+                    logger.info(
+                        f"User with telegram_id={user.telegram_id} "
+                        "telegram unavailable",
                     )
-                )
-                user_ids = [user.id for user in users]
-                stop_words_map = (
-                    await self.stop_words_gateway.get_stop_words_by_user_ids(
-                        user_ids,
-                    )
-                )
-                price_filter_map = (
-                    await self.price_filter_gateway.get_filter_by_user_ids(
-                        user_ids,
-                    )
-                )
-                project_text = f"{project.title} {project.description}"
-                for user in users:
-                    if user.telegram_id is None:
+                    continue
+                user_stop_words = stop_words_map.get(user.id, [])
+                if self._contains_stop_word(project_text, user_stop_words):
+                    continue
+                price_filter = price_filter_map.get(user.id)
+                if price_filter is not None:
+                    min_price = price_filter[0]
+                    max_price = price_filter[1]
+                    if min_price > project.price or project.price > max_price:
                         continue
-                    if user.is_telegram_unavailable:
-                        logger.info(
-                            f"User with telegram_id={user.telegram_id} "
-                            "telegram unavailable",
-                        )
-                        continue
-                    user_stop_words = stop_words_map.get(user.id, [])
-                    if self._contains_stop_word(project_text, user_stop_words):
-                        continue
-                    price_filter = price_filter_map.get(user.id)
-                    if price_filter is not None:
-                        min_price = price_filter[0]
-                        max_price = price_filter[1]
-                        if (
-                            min_price > project.price
-                            or project.price > max_price
-                        ):
-                            continue
 
-                    notification = ProjectNotification(
+                previous_notification = (
+                    await self.project_notification_gateway.get(
                         project_id=project.id,
                         user_id=user.id,
-                        sent_at=datetime.now(UTC),
-                        error=None,
                     )
-                    try:
-                        project_links = self.url_builder.build_links(project)
-                        await self.telegram_notifier.send_message(
-                            chat_id=user.telegram_id,
-                            text=self._get_project_message(
-                                project,
-                                project_links,
-                            ),
-                            keyboard=build_project_kbd(project, project_links),
-                        )
-                    except RecipientUnavailableError as exc:
-                        notification.error = str(exc)
-                        user.mark_telegram_unavailable()
-                        await self.transaction_manager.flush()
-                    except Exception as exc:
-                        notification.error = str(exc)
-                        logger.exception("Failed to send message")
-                    project_notifications.append(notification)
-                    await asyncio.sleep(0.3)
+                )
+                if (
+                    previous_notification is not None
+                    and previous_notification.error is None
+                    and previous_notification.project_updated_at
+                    >= project.updated_at
+                ):
+                    continue
+
+                notification = ProjectNotification(
+                    project_id=project.id,
+                    user_id=user.id,
+                    project_updated_at=project.updated_at,
+                    sent_at=datetime.now(UTC),
+                    error=None,
+                )
+                try:
+                    project_links = self.url_builder.build_links(project)
+                    await self.telegram_notifier.send_message(
+                        chat_id=user.telegram_id,
+                        text=self._get_project_message(
+                            project,
+                            project_links,
+                        ),
+                        keyboard=build_project_kbd(project, project_links),
+                    )
+                except RecipientUnavailableError as exc:
+                    notification.error = str(exc)
+                    user.mark_telegram_unavailable()
+                    await self.transaction_manager.flush()
+                except Exception as exc:
+                    notification.error = str(exc)
+                    has_delivery_errors = True
+                    logger.exception(
+                        "Failed to notify user %s about project %s",
+                        user.id,
+                        project.id,
+                    )
+                project_notifications.append(notification)
+                await asyncio.sleep(0.3)
 
             if project_notifications:
-                await self.project_notification_gateway.bulk_insert(
+                await self.project_notification_gateway.bulk_upsert(
                     project_notifications,
                 )
                 await self.transaction_manager.commit()
+
+        if has_delivery_errors:
+            raise ProjectNotificationDeliveryError(
+                "Some project notifications were not delivered",
+            )
 
     async def notify_new_projects_to_channel(
         self,
@@ -242,7 +256,8 @@ class ProjectProposalNotificationService:
 
     async def notify_generated(self, user_id: UUID, project_id: UUID):
         logger.info(
-            f"NOTIFY PROJECT PROPOSAL: user_id={user_id}, project_id: {project_id}",
+            f"NOTIFY PROJECT PROPOSAL: user_id={user_id}, "
+            f"project_id: {project_id}",
         )
         proposal = await self.proposal_gateway.get_with_user(
             user_id=user_id,
@@ -289,7 +304,10 @@ class SubscriptionNotificationService:
         user = await self.user_gateway.get_by_id(user_id)
         await self.telegram_notifier.send_message(
             chat_id=user.telegram_id,
-            text=f"✅ PRO подписка продлена до {new_expires_at.strftime('%d.%m.%Y')}",
+            text=(
+                f"✅ PRO подписка продлена до "
+                f"{new_expires_at.strftime('%d.%m.%Y')}"
+            ),
         )
 
     async def notify_retry(self, user_id: UUID):

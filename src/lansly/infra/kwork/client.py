@@ -1,5 +1,7 @@
 import logging
 
+from datetime import UTC, datetime, timedelta
+
 from kwork import Kwork
 
 from lansly.projects.consts import Marketplace
@@ -62,6 +64,7 @@ class KworkClient(MarketplaceClient):
                 categories_ids=["all"],
                 page=page,
             )
+            received_at = datetime.now(UTC)
         if not projects:
             return []
         result = []
@@ -117,6 +120,12 @@ class KworkClient(MarketplaceClient):
                     description=project.description or "",
                     offers=project.offers if project.offers is not None else 0,
                     customer=customer,
+                    expires_at=(
+                        received_at + timedelta(seconds=project.time_left)
+                        if project.time_left is not None
+                        and project.time_left > 0
+                        else None
+                    ),
                 ),
             )
         return result

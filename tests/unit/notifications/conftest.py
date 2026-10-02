@@ -4,7 +4,7 @@ from fakes.factories import (
     project as make_project,
     user as make_user,
 )
-from fakes.infra import FakeDistributedLockManager, FakeTransactionManager
+from fakes.infra import FakeTransactionManager
 from fakes.notifications import (
     FakeChannelNotificationGateway,
     FakeProjectNotificationGateway,
@@ -53,7 +53,6 @@ def service(
     channel_notification_gateway: FakeChannelNotificationGateway,
     notifier: FakeTelegramNotifier,
     txn: FakeTransactionManager,
-    lock_manager: FakeDistributedLockManager,
 ) -> ProjectNotificationService:
     return ProjectNotificationService(
         project_gateway=project_gateway,
@@ -70,6 +69,5 @@ def service(
                 KworkUrlStrategy(8),
             ],
         ),
-        lock_manager=lock_manager,
         channel_id=-100,
     )

@@ -1,4 +1,5 @@
 from typing import TypedDict
+from uuid import UUID
 
 from aiogram.types import ReplyMarkupUnion
 
@@ -8,12 +9,41 @@ from lansly.notifications.models import (
 )
 
 
+class FakeProjectNotificationQueue:
+    def __init__(self) -> None:
+        self.enqueued: list[list[UUID]] = []
+
+    async def enqueue(self, project_ids: list[UUID]) -> None:
+        self.enqueued.append(list(project_ids))
+
+
 class FakeProjectNotificationGateway:
     def __init__(self) -> None:
         self.rows: list[ProjectNotification] = []
 
-    async def bulk_insert(self, rows: list[ProjectNotification]) -> None:
-        self.rows.extend(rows)
+    async def bulk_upsert(self, rows: list[ProjectNotification]) -> None:
+        for row in rows:
+            self.rows = [
+                saved
+                for saved in self.rows
+                if (saved.project_id, saved.user_id)
+                != (row.project_id, row.user_id)
+            ]
+            self.rows.append(row)
+
+    async def get(
+        self,
+        project_id: UUID,
+        user_id: UUID,
+    ) -> ProjectNotification | None:
+        return next(
+            (
+                row
+                for row in self.rows
+                if row.project_id == project_id and row.user_id == user_id
+            ),
+            None,
+        )
 
 
 class FakeChannelNotificationGateway:

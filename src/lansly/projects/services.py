@@ -4,13 +4,14 @@ import re
 import traceback
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid7
 
 from lansly.auth.interfaces import IdProvider
 from lansly.common.interfaces.lock_manager import DistributedLockManager
 from lansly.common.interfaces.transaction_manager import TransactionManager
 from lansly.notifications.interfaces import (
+    ProjectNotificationQueue,
     ProposalGeneratedNotificationQueue,
 )
 from lansly.preferences.exceptions import UserFreelancerProfileNotFoundError
@@ -172,7 +173,7 @@ class ProjectCategoryService:
 
 
 class ProjectSyncService:
-    def __init__(
+    def __init__(  # noqa: PLR0917
         self,
         integrations: Sequence[MarketplaceIntegration],
         category_gateway: ProjectCategoryGateway,
@@ -180,6 +181,7 @@ class ProjectSyncService:
         customer_gateway: CustomerGateway,
         transaction_manager: TransactionManager,
         lock_manager: DistributedLockManager,
+        notification_queue: ProjectNotificationQueue,
     ):
         self.integrations = {i.source: i for i in integrations}
         self.category_gateway = category_gateway
@@ -187,6 +189,7 @@ class ProjectSyncService:
         self.customer_gateway = customer_gateway
         self.transaction_manager = transaction_manager
         self.lock_manager = lock_manager
+        self.notification_queue = notification_queue
 
     async def sync(self, source: Marketplace) -> list[UUID]:
         integration = self.integrations.get(source)
@@ -217,10 +220,13 @@ class ProjectSyncService:
     ) -> list[UUID]:
         collector = integration.collector
         projects = await collector.collect()
-        return await self._save_projects(
+        saved_ids = await self._save_projects(
             projects=projects,
             source=integration.source,
         )
+        if saved_ids:
+            await self.notification_queue.enqueue(saved_ids)
+        return saved_ids
 
     def _normalize_description(self, text: str) -> str:
         # 1. Декодируем HTML entities
@@ -289,41 +295,67 @@ class ProjectSyncService:
         self,
         projects: list[MarketplaceProject],
         source: Marketplace,
-    ):
+    ) -> list[UUID]:
         if not projects:
             return []
 
-        invalid_sources = [p.source for p in projects if p.source != source]
-        if invalid_sources:
-            raise ValueError(
-                f"Project source mismatch: expected={source}, "
-                f"actual={sorted(invalid_sources)}",
-            )
+        if any(project.source != source for project in projects):
+            raise ValueError(f"Project source mismatch: expected={source}")
+
         projects = self._deduplicate_projects(projects)
-        # 1. Фильтруем только новые проекты
-        project_ids = [project.id for project in projects]
-        missing_project_ids = (
-            await self.project_gateway.get_missing_external_ids(
-                external_ids=project_ids,
+        existing_projects = (
+            await self.project_gateway.get_projects_by_external_ids(
+                external_ids=[project.id for project in projects],
                 source=source,
             )
         )
-        if not missing_project_ids:
-            return []
-        new_projects = [p for p in projects if p.id in missing_project_ids]
+        existing_map = {
+            project.external_id: project for project in existing_projects
+        }
 
-        # 2. Категории только из новых проектов
-        category_ids = [
-            p.category_id for p in new_projects if p.category_id is not None
-        ]
+        changed_projects: list[
+            tuple[MarketplaceProject, str, datetime | None]
+        ] = []
+
+        for project in projects:
+            existing = existing_map.get(project.id)
+            description = self._normalize_description(project.description)
+            expires_at = (
+                existing.expires_at if existing is not None else None
+            )
+            expiry_changed = project.expires_at is not None and (
+                expires_at is None
+                or project.expires_at > expires_at + timedelta(minutes=5)
+            )
+            if expiry_changed:
+                expires_at = project.expires_at
+
+            if existing is not None and (
+                project.title == existing.title
+                and description == existing.description
+                and project.price == existing.price
+                and not expiry_changed
+            ):
+                continue
+
+            changed_projects.append((project, description, expires_at))
+
+        if not changed_projects:
+            return []
+
+        category_ids = list({
+            project.category_id
+            for project, _, _ in changed_projects
+            if project.category_id is not None
+        })
         categories = (
             await self.category_gateway.get_categories_by_external_ids(
-                category_ids,
+                external_ids=category_ids,
                 source=source,
             )
         )
-        category_map: dict[str, UUID] = {
-            c.external_id: c.id for c in categories
+        category_map = {
+            category.external_id: category.id for category in categories
         }
 
         missing_categories = set(category_ids) - set(category_map)
@@ -333,34 +365,45 @@ class ProjectSyncService:
                 ", ".join(sorted(missing_categories)),
             )
 
-        customer_map = await self._save_customers(source, new_projects)
-        domain_projects = [
-            Project(
-                id=uuid7(),
-                external_id=p.id,
-                source=source,
-                category_id=category_map.get(p.category_id),
-                customer_id=(
-                    customer_map.get(p.customer.id)
-                    if p.customer is not None
-                    else None
+        customer_map = await self._save_customers(
+            source=source,
+            projects=[project for project, _, _ in changed_projects],
+        )
+
+        now = datetime.now(UTC)
+        upserted_projects = []
+
+        for project, description, expires_at in changed_projects:
+            existing = existing_map.get(project.id)
+
+            upserted_projects.append(
+                Project(
+                    id=existing.id if existing is not None else uuid7(),
+                    external_id=project.id,
+                    source=source,
+                    title=project.title,
+                    description=description,
+                    price=project.price,
+                    possible_price_limit=project.possible_price_limit,
+                    has_exact_budget=project.has_exact_budget,
+                    category_id=category_map.get(project.category_id),
+                    customer_id=(
+                        customer_map.get(project.customer.id)
+                        if project.customer is not None
+                        else None
+                    ),
+                    offers=project.offers,
+                    created_at=(
+                        existing.created_at if existing is not None else now
+                    ),
+                    updated_at=now,
+                    expires_at=expires_at,
                 ),
-                price=p.price,
-                possible_price_limit=p.possible_price_limit,
-                has_exact_budget=p.has_exact_budget,
-                title=p.title,
-                description=self._normalize_description(
-                    p.description,
-                ),
-                offers=p.offers,
-                created_at=datetime.now(UTC),
             )
-            for p in new_projects
-        ]
-        inserted_ids = await self.project_gateway.bulk_insert(domain_projects)
-        if inserted_ids:
-            await self.transaction_manager.commit()
-        return inserted_ids
+
+        saved_ids = await self.project_gateway.bulk_upsert(upserted_projects)
+        await self.transaction_manager.commit()
+        return saved_ids
 
 
 class ProjectProposalRequestService:
