@@ -8,9 +8,11 @@ class UserView(ModelView):
     fields = [  # noqa: RUF012
         User.id,
         User.telegram_id,
+        User.username,
         User.source,
         User.created_at,
         User.updated_at,
+        User.trial_started_at,
         User.is_telegram_unavailable,
     ]
 

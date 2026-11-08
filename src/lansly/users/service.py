@@ -41,6 +41,7 @@ class CreateAdminUserService:
             password_hash=password_hash,
             created_at=now,
             updated_at=now,
+            trial_started_at=now,
         )
         new_user_role = UserRole(
             id=uuid7(),

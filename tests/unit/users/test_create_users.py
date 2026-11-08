@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import uuid7
 
 import pytest
@@ -47,6 +48,10 @@ async def test_create_creates_user_with_admin_role(
     assert created.id == dto.user_id
     assert created.username == "admin"
     assert created.telegram_id is None
+    assert isinstance(created.created_at, datetime)
+    assert isinstance(created.updated_at, datetime)
+    assert isinstance(created.trial_started_at, datetime)
+    assert created.created_at == created.updated_at == created.trial_started_at
     assert created in user_gateway.users
 
     assert len(role_gateway.added_roles) == 1

@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     String,
+    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -51,6 +52,11 @@ class User(Base):
         DateTime(timezone=True),
         nullable=False,
     )
+    trial_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
     is_telegram_unavailable: Mapped[bool] = mapped_column(
         default=False,
         server_default=text("false"),
@@ -71,6 +77,7 @@ class User(Base):
             f"source={self.source}, "
             f"created_at={self.created_at}, "
             f"updated_at={self.updated_at}, "
+            f"trial_started_at={self.trial_started_at}, "
             f"is_telegram_unavailable={self.is_telegram_unavailable}"
             ")"
         )
