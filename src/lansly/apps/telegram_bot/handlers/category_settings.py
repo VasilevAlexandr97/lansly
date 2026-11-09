@@ -14,7 +14,6 @@ from lansly.apps.telegram_bot.keyboards import (
     build_main_menu_kbd,
 )
 from lansly.apps.telegram_bot.messages import (
-    categories_limit_exceeded_message,
     category_settings_disable_confirmation_message,
     category_settings_disabled_message,
     category_settings_select_category_message,
@@ -24,7 +23,6 @@ from lansly.apps.telegram_bot.messages import (
 )
 from lansly.apps.telegram_bot.states import CategorySettingsState
 from lansly.common.dto import CurrentUser
-from lansly.preferences.exceptions import UserCategoryFollowLimitExceededError
 from lansly.preferences.services import UserCategoryFollowService
 
 router = Router()
@@ -235,18 +233,14 @@ async def toggle_category_handler(
             show_alert=True,
         )
         return
-    try:
-        result = await service.toggle_category_follow(category_id)
-        text = category_settings_select_category_message(
-            marketplace=marketplace,
-            direction=direction_title,
-        )
-        keyboard = build_category_settings_categories_kbd(result.categories)
-        await call.message.edit_text(text, reply_markup=keyboard)
-        await call.answer()
-    except UserCategoryFollowLimitExceededError as exc:
-        text = categories_limit_exceeded_message(exc.limit)
-        await call.answer(text, show_alert=True)
+    result = await service.toggle_category_follow(category_id)
+    text = category_settings_select_category_message(
+        marketplace=marketplace,
+        direction=direction_title,
+    )
+    keyboard = build_category_settings_categories_kbd(result.categories)
+    await call.message.edit_text(text, reply_markup=keyboard)
+    await call.answer()
 
 
 @router.callback_query(

@@ -22,7 +22,6 @@ class CategoryWithFollowedStatusDTO:
 @dataclass(frozen=True)
 class SubcategoriesWithFollowStatusDTO:
     categories: list[CategoryWithFollowedStatusDTO]
-    limit: int
 
 
 @dataclass(frozen=True)

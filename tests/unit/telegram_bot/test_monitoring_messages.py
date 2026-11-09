@@ -97,13 +97,6 @@ def test_settings_disable_messages():
     assert "отключ" in m.category_settings_disabled_message().lower()
 
 
-@pytest.mark.parametrize("limit", [1, 9999])
-def test_category_limit_message(limit):
-    # Проверяет включение переданного лимита категорий в сообщение о его
-    # превышении.
-    assert str(limit) in m.categories_limit_exceeded_message(limit)
-
-
 def test_expired_setup_message():
     # Проверяет, что сообщение об устаревшей настройке непустое и указывает на
     # истечение её срока.

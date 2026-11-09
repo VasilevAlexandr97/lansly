@@ -16,7 +16,6 @@ from lansly.apps.telegram_bot.keyboards import (
 )
 from lansly.apps.telegram_bot.messages import error_callback_message
 from lansly.apps.telegram_bot.states import OnboardingState
-from lansly.preferences.exceptions import UserCategoryFollowLimitExceededError
 from lansly.projects.consts import Marketplace
 
 pytestmark = pytest.mark.asyncio
@@ -230,31 +229,6 @@ async def test_complete_user_roles(
         assert expected in callback_data
     else:
         assert not callback_data & {"pro_subscription", "manage_subscription"}
-
-
-async def test_category_limit_exceeded(bot_client, state, fake_follow_service):
-    # Проверяет показ ошибки с лимитом категорий без изменения данных FSM, шага
-    # онбординга и подписок.
-    direction = await choose_marketplace(
-        bot_client,
-        state,
-        fake_follow_service,
-    )
-    child = await choose_direction(bot_client, fake_follow_service, direction)
-    before = await state.get_data()
-    fake_follow_service.error = UserCategoryFollowLimitExceededError(limit=1)
-    await bot_client.click(
-        OnboardingCB(
-            action=OnboardingAction.CATEGORY,
-            category_id=child.id,
-        ).pack(),
-    )
-    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
-    assert callback_answer.show_alert is True
-    assert "1" in callback_answer.text
-    assert await state.get_state() == OnboardingState.select_category.state
-    assert await state.get_data() == before
-    assert not fake_follow_service.followed
 
 
 async def test_back_to_marketplaces(bot_client, state, fake_follow_service):

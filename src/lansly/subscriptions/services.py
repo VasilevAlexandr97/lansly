@@ -524,7 +524,6 @@ class SubscriptionRenewalService:
             subscription.renewal_attempts += 1
             if subscription.renewal_attempts >= 3:
                 subscription.finish()
-                await self.limits_resetter.reset_limits(subscription.user_id)
                 await self.transaction_manager.commit()
                 await self.notify_queue.enqueue_revoked(subscription.user_id)
             else:

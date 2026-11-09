@@ -15,9 +15,5 @@ class SubscriptionChecker(Protocol):
 
 class SubscriptionLimitsResetter(Protocol):
     @abstractmethod
-    async def reset_pro_generations(self, user_id: UUID):
-        raise NotImplementedError
-
-    @abstractmethod
-    async def reset_limits(self, user_id: UUID) -> None:
+    async def reset_pro_generations(self, user_id: UUID) -> None:
         raise NotImplementedError

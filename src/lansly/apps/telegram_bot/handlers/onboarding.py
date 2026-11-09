@@ -13,7 +13,6 @@ from lansly.apps.telegram_bot.keyboards import (
     build_onboarding_marketplaces_kbd,
 )
 from lansly.apps.telegram_bot.messages import (
-    categories_limit_exceeded_message,
     monitoring_setup_expired_message,
     onboarding_complete_message,
     onboarding_select_category_message,
@@ -22,7 +21,6 @@ from lansly.apps.telegram_bot.messages import (
 )
 from lansly.apps.telegram_bot.states import OnboardingState
 from lansly.common.dto import CurrentUser
-from lansly.preferences.exceptions import UserCategoryFollowLimitExceededError
 from lansly.preferences.services import UserCategoryFollowService
 from lansly.projects.services import ProjectCategoryService
 
@@ -198,14 +196,7 @@ async def select_category_handler(
             show_alert=True,
         )
         return
-    try:
-        followed_category = await service.follow_category(category_id)
-    except UserCategoryFollowLimitExceededError as exc:
-        await call.answer(
-            categories_limit_exceeded_message(exc.limit),
-            show_alert=True,
-        )
-        return
+    followed_category = await service.follow_category(category_id)
     text = onboarding_complete_message(marketplace, followed_category.title)
     keyboard = build_main_menu_kbd(
         is_pro=current_user.is_pro,

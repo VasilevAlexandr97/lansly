@@ -12,23 +12,12 @@ class Identity:
         return self.user_id
 
 
-class Subscription:
-    def __init__(self, pro=False):
-        self.pro = pro
-        self.users = []
-
-    async def is_pro_user(self, user_id):
-        self.users.append(user_id)
-        return self.pro
-
-
 class FollowGateway:
     def __init__(self, categories=()):
         self.categories = {c.id: c for c in categories}
         self.follows = {}
         self.added = []
         self.error = None
-        self.count_override = None
         self.source_counts = {}
         self.direction_counts = []
         self.calls = []
@@ -55,15 +44,6 @@ class FollowGateway:
             raise self.error
         self.added.append(row)
         self.follows[row.user_id, row.category_id] = row
-
-    async def get_count_followed_categories(self, user_id):
-        if self.count_override is not None:
-            return self.count_override
-        return sum(
-            row.is_active
-            for (uid, _), row in self.follows.items()
-            if uid == user_id
-        )
 
     async def get_subcategories_with_follow_status(self, user_id, parent_id):
         self.calls.append(("subcategories", user_id, parent_id))

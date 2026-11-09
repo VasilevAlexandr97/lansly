@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, delete, select, update
@@ -22,7 +21,6 @@ from lansly.preferences.models import (
     UserStopWord,
 )
 from lansly.projects.models import ProjectCategory
-from lansly.users.models import User
 
 
 class UserCategoryFollowGateway:
@@ -51,33 +49,6 @@ class UserCategoryFollowGateway:
         )
         await self.session.execute(stmt)
 
-    async def deactivate_excess_follows(
-        self,
-        user_id: UUID,
-        keep_count: int,
-    ) -> None:
-        keep_ids_subq = (
-            select(UserCategoryFollow.category_id)
-            .where(
-                UserCategoryFollow.user_id == user_id,
-                UserCategoryFollow.is_active.is_(True),
-            )
-            .order_by(UserCategoryFollow.created_at.asc())
-            .limit(keep_count)
-            .scalar_subquery()
-        )
-        stmt = (
-            update(UserCategoryFollow)
-            .values({"is_active": False, "updated_at": datetime.now(UTC)})
-            .where(
-                UserCategoryFollow.user_id == user_id,
-                UserCategoryFollow.is_active.is_(True),
-                UserCategoryFollow.category_id.not_in(keep_ids_subq),
-            )
-            .execution_options(synchronize_session=False)
-        )
-        await self.session.execute(stmt)
-
     async def get(
         self,
         user_id: UUID,
@@ -99,16 +70,6 @@ class UserCategoryFollowGateway:
             .limit(1)
         )
         return await self.session.scalar(stmt)
-
-    async def get_count_followed_categories(self, user_id: UUID) -> int:
-        stmt = select(functions.count(UserCategoryFollow.user_id)).where(
-            UserCategoryFollow.user_id == user_id,
-            UserCategoryFollow.is_active.is_(True),
-        )
-        result = await self.session.scalar(stmt)
-        if result is None:
-            return 0
-        return result
 
     async def get_followed_category_counts_by_source(
         self,
@@ -205,27 +166,6 @@ class UserCategoryFollowGateway:
         result = await self.session.execute(stmt)
         return list(result.tuples().all())
 
-    async def get_users_followed_to_category(
-        self,
-        category_id: UUID,
-    ) -> list[User]:
-        stmt = (
-            select(User)
-            .join(
-                UserCategoryFollow,
-                and_(
-                    UserCategoryFollow.user_id == User.id,
-                    UserCategoryFollow.is_active.is_(True),
-                ),
-            )
-            .where(
-                User.is_telegram_unavailable.is_not(True),
-                UserCategoryFollow.category_id == category_id,
-            )
-        )
-        result = await self.session.scalars(stmt)
-        return list(result.all())
-
 
 class SAFreelancerProfileGateway(FreelancerProfileGateway):
     def __init__(self, session: AsyncSession):
@@ -268,22 +208,6 @@ class UserStopWordsGateway:
                 UserStopWord.user_id == user_id,
                 UserStopWord.word.in_(words),
             ),
-        )
-        await self.session.execute(stmt)
-
-    async def delete_excess(self, user_id: UUID, keep_count: int) -> None:
-        keep_words_subq = (
-            select(UserStopWord.word)
-            .where(
-                UserStopWord.user_id == user_id,
-            )
-            .order_by(UserStopWord.created_at.asc())
-            .limit(keep_count)
-            .scalar_subquery()
-        )
-        stmt = delete(UserStopWord).where(
-            UserStopWord.user_id == user_id,
-            UserStopWord.word.not_in(keep_words_subq),
         )
         await self.session.execute(stmt)
 

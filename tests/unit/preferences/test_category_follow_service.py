@@ -5,14 +5,10 @@ from uuid import uuid7
 import pytest
 
 from fakes.factories import category
-from fakes.follows import FollowGateway, Identity, Subscription
+from fakes.follows import FollowGateway, Identity
 from fakes.infra import FakeTransactionManager
 
-from lansly.preferences.consts import MAX_FREE_CATEGORIES, MAX_PRO_CATEGORIES
-from lansly.preferences.exceptions import (
-    UserCategoryFollowAlreadyExistsError,
-    UserCategoryFollowLimitExceededError,
-)
+from lansly.preferences.exceptions import UserCategoryFollowAlreadyExistsError
 from lansly.preferences.services import UserCategoryFollowService
 from lansly.projects.consts import Marketplace
 from lansly.projects.exceptions import ProjectCategoryNotFoundError
@@ -24,10 +20,9 @@ pytestmark = pytest.mark.asyncio
 def ctx():
     root = category()
     child = category(parent_id=root.id, external_id="logo", title="Лого")
-    gateway, identity, subscription, txn = (
+    gateway, identity, txn = (
         FollowGateway([root, child]),
         Identity(),
-        Subscription(),
         FakeTransactionManager(),
     )
     return SimpleNamespace(
@@ -35,14 +30,8 @@ def ctx():
         child=child,
         gateway=gateway,
         identity=identity,
-        subscription=subscription,
         txn=txn,
-        service=UserCategoryFollowService(
-            gateway,
-            subscription,
-            identity,
-            txn,
-        ),
+        service=UserCategoryFollowService(gateway, identity, txn),
     )
 
 
@@ -73,83 +62,30 @@ async def test_follow_active_category(ctx):
     assert ctx.txn.commits == 0
 
 
-async def test_follow_active_at_limit(ctx):
-    # Проверяет, что уже активную подписку можно повторно запросить даже при
-    # достигнутом лимите категорий.
-    ctx.gateway.seed(ctx.identity.user_id, ctx.child.id)
-    ctx.gateway.count_override = MAX_PRO_CATEGORIES
-    assert (await ctx.service.follow_category(ctx.child.id)).title == "Лого"
-    assert ctx.txn.commits == 0
-
-
 async def test_follow_inactive_category(ctx):
-    # Проверяет восстановление неактивной подписки с обновлением времени и без
-    # создания новой записи.
+    # Проверяет восстановление категории с сохранением другой подписки.
+    other = ctx.gateway.seed(ctx.identity.user_id, uuid7())
     row = ctx.gateway.seed(ctx.identity.user_id, ctx.child.id, active=False)
     old = row.updated_at
     await ctx.service.follow_category(ctx.child.id)
     assert row.is_active
+    assert other.is_active
     assert row.updated_at > old
     assert not ctx.gateway.added
     assert ctx.txn.commits == 1
 
 
-@pytest.mark.parametrize(
-    ("count", "allowed"),
-    [(MAX_FREE_CATEGORIES - 1, True), (MAX_FREE_CATEGORIES, False)],
-)
-async def test_follow_free_limit(ctx, count, allowed):
-    # Проверяет, что тариф FREE разрешает подписку до лимита и отклоняет её при
-    # достижении лимита.
-    ctx.gateway.count_override = count
-    if allowed:
-        await ctx.service.follow_category(ctx.child.id)
-        assert ctx.txn.commits == 1
-    else:
-        with pytest.raises(UserCategoryFollowLimitExceededError) as exc:
-            await ctx.service.follow_category(ctx.child.id)
-        assert exc.value.limit == MAX_FREE_CATEGORIES
-        assert ctx.txn.commits == 0
-
-
-@pytest.mark.parametrize(
-    ("count", "allowed"),
-    [(MAX_PRO_CATEGORIES - 1, True), (MAX_PRO_CATEGORIES, False)],
-)
-async def test_follow_pro_limit(ctx, count, allowed):
-    # Проверяет, что тариф PRO разрешает подписку до лимита и сообщает его
-    # значение при отказе.
-    ctx.subscription.pro = True
-    ctx.gateway.count_override = count
-    if allowed:
-        await ctx.service.follow_category(ctx.child.id)
-        assert ctx.txn.commits == 1
-    else:
-        with pytest.raises(UserCategoryFollowLimitExceededError) as exc:
-            await ctx.service.follow_category(ctx.child.id)
-        assert exc.value.limit == MAX_PRO_CATEGORIES
-
-
-async def test_follow_shared_limit(ctx):
-    # Проверяет, что подписка на Kwork учитывается в общем лимите при
-    # добавлении категории FL.ru.
+async def test_follow_categories_from_both_marketplaces(ctx):
+    # Проверяет добавление категории FL.ru при активной подписке на Kwork.
     other = category(source=Marketplace.KWORK, parent_id=uuid7())
     ctx.gateway.categories[other.id] = other
-    ctx.gateway.seed(ctx.identity.user_id, other.id)
-    with pytest.raises(UserCategoryFollowLimitExceededError):
-        await ctx.service.follow_category(ctx.child.id)
-    assert ctx.gateway.added == []
-
-
-async def test_follow_reactivation_limit(ctx):
-    # Проверяет, что достигнутый лимит не позволяет восстановить неактивную
-    # подписку.
-    row = ctx.gateway.seed(ctx.identity.user_id, ctx.child.id, active=False)
-    ctx.gateway.count_override = MAX_FREE_CATEGORIES
-    with pytest.raises(UserCategoryFollowLimitExceededError):
-        await ctx.service.follow_category(ctx.child.id)
-    assert not row.is_active
-    assert ctx.txn.commits == 0
+    existing = ctx.gateway.seed(ctx.identity.user_id, other.id)
+    result = await ctx.service.follow_category(ctx.child.id)
+    (added,) = ctx.gateway.added
+    assert result.category_id == added.category_id == ctx.child.id
+    assert added.is_active
+    assert existing.is_active
+    assert ctx.txn.commits == 1
 
 
 @pytest.mark.parametrize("root", [True, False])
@@ -172,19 +108,15 @@ async def test_follow_write_error(ctx):
 
 
 async def test_toggle_new_category(ctx):
-    # Проверяет, что переключение категории без подписки включает её и
-    # возвращает активный статус с лимитом FREE.
+    # Проверяет включение новой категории и возврат активного статуса.
     result = await ctx.service.toggle_category_follow(ctx.child.id)
     assert result.categories[0].is_followed
-    assert result.limit == MAX_FREE_CATEGORIES
     assert ctx.txn.commits == 1
 
 
 async def test_toggle_active_category(ctx):
-    # Проверяет, что переключение активной подписки отключает её даже при
-    # достигнутом лимите категорий.
+    # Проверяет отключение активной категории и обновление её статуса.
     row = ctx.gateway.seed(ctx.identity.user_id, ctx.child.id)
-    ctx.gateway.count_override = MAX_PRO_CATEGORIES
     result = await ctx.service.toggle_category_follow(ctx.child.id)
     assert not row.is_active
     assert not result.categories[0].is_followed
@@ -202,23 +134,19 @@ async def test_toggle_inactive_category(ctx):
     assert ctx.txn.commits == 1
 
 
-@pytest.mark.parametrize(
-    ("pro", "reactivate"),
-    [(False, False), (False, True), (True, False), (True, True)],
-)
-async def test_toggle_limit_exceeded(ctx, pro, reactivate):
-    # Проверяет отказ при добавлении или восстановлении подписки сверх лимита
-    # FREE либо PRO.
-    ctx.subscription.pro = pro
-    ctx.gateway.count_override = (
-        MAX_PRO_CATEGORIES if pro else MAX_FREE_CATEGORIES
-    )
+@pytest.mark.parametrize("reactivate", [False, True])
+async def test_toggle_with_another_active_category(ctx, reactivate):
+    # Проверяет включение новой или отключённой категории при активной другой.
+    other = category(parent_id=ctx.root.id, external_id="branding")
+    ctx.gateway.categories[other.id] = other
+    ctx.gateway.seed(ctx.identity.user_id, other.id)
     if reactivate:
         ctx.gateway.seed(ctx.identity.user_id, ctx.child.id, active=False)
-    with pytest.raises(UserCategoryFollowLimitExceededError):
-        await ctx.service.toggle_category_follow(ctx.child.id)
-    assert ctx.txn.commits == 0
-    assert not ctx.gateway.added
+    result = await ctx.service.toggle_category_follow(ctx.child.id)
+    assert {
+        item.category.id for item in result.categories if item.is_followed
+    } == {ctx.child.id, other.id}
+    assert ctx.txn.commits == 1
 
 
 @pytest.mark.parametrize("root", [True, False])

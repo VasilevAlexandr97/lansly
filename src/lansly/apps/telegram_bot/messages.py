@@ -4,12 +4,7 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
-from lansly.preferences.consts import (
-    MAX_FREE_CATEGORIES,
-    MAX_FREE_STOP_WORDS,
-    MAX_LENGTH_FREELANCER_PROFILE,
-    MAX_PRO_STOP_WORDS,
-)
+from lansly.preferences.consts import MAX_LENGTH_FREELANCER_PROFILE
 from lansly.preferences.dto import SourceCategoryFollowCountDTO
 from lansly.preferences.models import UserPriceFilter
 from lansly.projects.consts import (
@@ -121,7 +116,6 @@ def onboarding_select_category_message(
         f"<b>{MARKETPLACE_LABELS[marketplace]} › "
         f"{html.escape(direction)} · Шаг 2 из 2</b>\n\n"
         "Выберите категорию — по ней будут приходить новые заказы.\n\n"
-        "На бесплатном тарифе доступна 1 категория."
     )
 
 
@@ -202,13 +196,6 @@ def category_settings_disabled_message() -> str:
         "Все категории отключены. "
         "Уведомления о новых заказах больше не будут приходить.\n\n"
         "Чтобы возобновить мониторинг, выберите источник и категорию."
-    )
-
-
-def categories_limit_exceeded_message(limit: int) -> str:
-    return (
-        f"🔒 Бесплатный тариф ограничен {limit} категориями. "
-        "Перейдите на PRO для доступа ко всем категориям."
     )
 
 
@@ -387,9 +374,6 @@ def pro_subscription_info_message(
     text = (
         "👑 PRO подписка\n\n"
         "Открой полный доступ к возможностям бота:\n\n"
-        f"📂 Все категории - подписывайся не на {MAX_FREE_CATEGORIES}, "
-        "а на любое количество категорий и не пропускай ни одного "
-        "нового проекта\n\n"
         "🔔 Мгновенные уведомления - узнавай о новых заказах "
         "в выбранных категориях первым, пока их не разобрали "
         "конкуренты\n\n"
@@ -399,10 +383,6 @@ def pro_subscription_info_message(
         "сгенерированных нейросетью, которые помогут выделиться среди фрилансеров\n\n"
         "⚡️ Экономия времени - не нужно придумывать текст отклика "
         "самому, ИИ сделает это за секунды\n\n"
-        f"🚫 {MAX_PRO_STOP_WORDS} стоп-слов - вместо "
-        f"{MAX_FREE_STOP_WORDS} бесплатных фильтруй заказы по "
-        f"{MAX_PRO_STOP_WORDS} стоп-словам и отсекай неподходящие "
-        "проекты\n\n"
     )
     if plan_slug == PlanSlug.PRO_INITIAL:
         text += (

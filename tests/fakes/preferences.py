@@ -8,7 +8,6 @@ from lansly.preferences.dto import (
     SubcategoriesWithFollowStatusDTO,
 )
 from lansly.projects.consts import Marketplace
-from lansly.users.models import User
 
 
 # TODO: подумать добавить или нет интерфейс для основного сервиса
@@ -41,7 +40,6 @@ class MonitoringFollowService(FakeFollowService):
         self.categories = {}
         self.followed = set()
         self.calls = []
-        self.error = None
 
     async def get_directions_with_follow_counts(self, source):
 
@@ -70,8 +68,6 @@ class MonitoringFollowService(FakeFollowService):
     async def follow_category(self, category_id):
 
         self.calls.append(("follow", category_id))
-        if self.error:
-            raise self.error
         category = next(
             c
             for group in self.categories.values()
@@ -84,8 +80,6 @@ class MonitoringFollowService(FakeFollowService):
     async def toggle_category_follow(self, category_id):
 
         self.calls.append(("toggle", category_id))
-        if self.error:
-            raise self.error
         self.followed.symmetric_difference_update({category_id})
         parent = next(
             p
@@ -93,8 +87,7 @@ class MonitoringFollowService(FakeFollowService):
             if any(c.id == category_id for c in cats)
         )
         return SubcategoriesWithFollowStatusDTO(
-            await self.get_subcategories_with_follow_status(parent),
-            1,
+            categories=await self.get_subcategories_with_follow_status(parent),
         )
 
     async def unfollow_all_categories(self):
@@ -130,16 +123,3 @@ class FakeUserPriceFilterGateway:
             for user_id in user_ids
             if user_id in self.prices
         }
-
-
-class FakeUserCategoryFollowGateway:
-    def __init__(self) -> None:
-        self.users_by_category: dict[UUID, list[User]] = {}
-        self.requested_categories: list[UUID] = []
-
-    async def get_users_followed_to_category(
-        self,
-        category_id: UUID,
-    ) -> list[User]:
-        self.requested_categories.append(category_id)
-        return self.users_by_category.get(category_id, [])

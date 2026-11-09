@@ -13,7 +13,6 @@ from lansly.apps.telegram_bot.keyboards import (
     CategorySettingsCB,
 )
 from lansly.apps.telegram_bot.states import CategorySettingsState
-from lansly.preferences.exceptions import UserCategoryFollowLimitExceededError
 
 from .helpers import get_inline_buttons
 
@@ -126,28 +125,6 @@ async def test_toggle_category(bot_client, state, fake_follow_service):
     assert child.id not in fake_follow_service.followed
     edited_message = bot_client.bot.get_last_method(EditMessageText)
     assert get_inline_buttons(edited_message)[0].text.startswith("⬜")
-    assert (
-        await state.get_state() == CategorySettingsState.select_category.state
-    )
-
-
-async def test_toggle_limit_exceeded(bot_client, state, fake_follow_service):
-    # Проверяет показ ошибки лимита без замены экрана и выхода из шага выбора
-    # категории.
-    await open_settings(bot_client)
-    direction = await choose_marketplace(bot_client, fake_follow_service)
-    child = await choose_direction(bot_client, fake_follow_service, direction)
-    before = bot_client.bot.get_last_method(EditMessageText)
-    fake_follow_service.error = UserCategoryFollowLimitExceededError(limit=1)
-    await bot_client.click(
-        CategorySettingsCB(
-            action=CategorySettingsAction.TOGGLE,
-            category_id=child.id,
-        ).pack(),
-    )
-    callback_answer = bot_client.bot.get_last_method(AnswerCallbackQuery)
-    assert callback_answer.show_alert
-    assert bot_client.bot.get_last_method(EditMessageText) is before
     assert (
         await state.get_state() == CategorySettingsState.select_category.state
     )

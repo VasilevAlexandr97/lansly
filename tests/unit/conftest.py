@@ -8,7 +8,6 @@ from fakes.notifications import (
     FakeTelegramNotifier,
 )
 from fakes.preferences import (
-    FakeUserCategoryFollowGateway,
     FakeUserPriceFilterGateway,
     FakeUserStopWordsGateway,
 )
@@ -72,11 +71,6 @@ def project_gateway() -> FakeProjectGateway:
 @pytest.fixture
 def customer_gateway() -> FakeCustomerGateway:
     return FakeCustomerGateway()
-
-
-@pytest.fixture
-def follow_gateway() -> FakeUserCategoryFollowGateway:
-    return FakeUserCategoryFollowGateway()
 
 
 @pytest.fixture
