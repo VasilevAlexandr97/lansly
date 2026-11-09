@@ -16,7 +16,6 @@ from fakes.notifications import (
     FakeTelegramNotifier,
 )
 from fakes.preferences import (
-    FakeUserCategoryFollowGateway,
     FakeUserPriceFilterGateway,
     FakeUserStopWordsGateway,
 )
@@ -40,6 +39,7 @@ async def test_updated_project_notifies_user_once_per_update(
     notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
 ):
+    # Проверяет однократную отправку уведомления для каждой версии проекта.
     await service.notify_new_projects([project.id])
     await service.notify_new_projects([project.id])
     assert len(notifier.sent) == 1
@@ -103,13 +103,13 @@ async def test_user_followed_category(
     service: ProjectNotificationService,
     project: Project,
     user: User,
-    follow_gateway: FakeUserCategoryFollowGateway,
+    notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
 ) -> None:
     # Проверяет поиск получателей по категории проекта и отправку уведомления
     # найденному пользователю.
     await service.notify_new_projects([project.id])
-    assert follow_gateway.requested_categories == [project.category_id]
+    assert notification_gateway.requested_categories == [project.category_id]
     assert [s["chat_id"] for s in notifier.sent] == [user.telegram_id]
 
 
@@ -133,7 +133,7 @@ async def test_user_without_category(
     *,
     service: ProjectNotificationService,
     project: Project,
-    follow_gateway: FakeUserCategoryFollowGateway,
+    notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
 ) -> None:
     # Проверяет, что для проекта без категории получатели не запрашиваются и
@@ -141,7 +141,7 @@ async def test_user_without_category(
     project.category_id = None
     await service.notify_new_projects([project.id])
     assert not notifier.sent
-    assert not follow_gateway.requested_categories
+    assert not notification_gateway.requested_categories
 
 
 @pytest.mark.parametrize("source", ["fl", "kwork"])
@@ -244,7 +244,6 @@ async def test_user_send_failure(
     project: Project,
     user: User,
     project_gateway: FakeProjectGateway,
-    follow_gateway: FakeUserCategoryFollowGateway,
     notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
     txn: FakeTransactionManager,
@@ -254,7 +253,7 @@ async def test_user_send_failure(
     # отправляем только тем, кому не удалось доставить сообщение.
     notifier.errors[user.telegram_id] = RuntimeError("Telegram unavailable")
     other = make_user(telegram_id=456)
-    follow_gateway.users_by_category[project.category_id].append(other)
+    notification_gateway.users_by_category[project.category_id].append(other)
     other_project = make_project(category=project.category, external_id="43")
     project_gateway.bulk_inserted.append(other_project)
     project_ids = [project.id, other_project.id]
@@ -304,18 +303,18 @@ async def test_new_version_during_delivery_is_not_skipped(
     service: ProjectNotificationService,
     project: Project,
     project_gateway: FakeProjectGateway,
-    follow_gateway: FakeUserCategoryFollowGateway,
     notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Проверяет отправку новой версии, появившейся во время доставки старой.
     updated_project = make_project(
         id=project.id,
         external_id=project.external_id,
         category=project.category,
         title="Обновлённый проект",
     )
-    get_users = follow_gateway.get_users_followed_to_category
+    get_users = notification_gateway.get_recipients_for_category
 
     async def update_project_before_sending(category_id):
         updated_project.updated_at = datetime.now(UTC)
@@ -323,8 +322,8 @@ async def test_new_version_during_delivery_is_not_skipped(
         return await get_users(category_id)
 
     monkeypatch.setattr(
-        follow_gateway,
-        "get_users_followed_to_category",
+        notification_gateway,
+        "get_recipients_for_category",
         update_project_before_sending,
     )
     await service.notify_new_projects([project.id])
@@ -333,8 +332,8 @@ async def test_new_version_during_delivery_is_not_skipped(
     assert notification.project_updated_at == project.updated_at
 
     monkeypatch.setattr(
-        follow_gateway,
-        "get_users_followed_to_category",
+        notification_gateway,
+        "get_recipients_for_category",
         get_users,
     )
     await service.notify_new_projects([project.id])
@@ -354,25 +353,26 @@ async def test_completed_project_is_committed_before_next_project_fails(
     service: ProjectNotificationService,
     project: Project,
     project_gateway: FakeProjectGateway,
-    follow_gateway: FakeUserCategoryFollowGateway,
     notification_gateway: FakeProjectNotificationGateway,
     notifier: FakeTelegramNotifier,
     txn: FakeTransactionManager,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Проверяет сохранение первой отправки при сбое на втором проекте
+    # и отправку только второго при повторе.
     other = make_project(category=project.category, external_id="43")
     project_gateway.bulk_inserted.append(other)
     project_ids = [project.id, other.id]
-    get_users = follow_gateway.get_users_followed_to_category
+    get_users = notification_gateway.get_recipients_for_category
 
     async def fail_second_project(category_id):
-        if follow_gateway.requested_categories:
+        if notification_gateway.requested_categories:
             raise RuntimeError("Subscription lookup failed")
         return await get_users(category_id)
 
     monkeypatch.setattr(
-        follow_gateway,
-        "get_users_followed_to_category",
+        notification_gateway,
+        "get_recipients_for_category",
         fail_second_project,
     )
     with pytest.raises(RuntimeError, match="Subscription lookup failed"):
@@ -383,8 +383,8 @@ async def test_completed_project_is_committed_before_next_project_fails(
     assert notification_gateway.rows[0].project_id == project.id
 
     monkeypatch.setattr(
-        follow_gateway,
-        "get_users_followed_to_category",
+        notification_gateway,
+        "get_recipients_for_category",
         get_users,
     )
     await service.notify_new_projects(project_ids)
@@ -398,14 +398,13 @@ async def test_user_no_deliveries(
     *,
     service: ProjectNotificationService,
     project: Project,
-    follow_gateway: FakeUserCategoryFollowGateway,
     notification_gateway: FakeProjectNotificationGateway,
     txn: FakeTransactionManager,
     empty_projects: bool,
 ) -> None:
     # Проверяет, что без проектов или получателей записи об отправке не
     # создаются и транзакция не фиксируется.
-    follow_gateway.users_by_category.clear()
+    notification_gateway.users_by_category.clear()
     await service.notify_new_projects([] if empty_projects else [project.id])
     assert not notification_gateway.rows
     assert txn.commits == 0

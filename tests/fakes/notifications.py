@@ -7,6 +7,7 @@ from lansly.notifications.models import (
     ChannelNotification,
     ProjectNotification,
 )
+from lansly.users.models import User
 
 
 class FakeProjectNotificationQueue:
@@ -20,6 +21,8 @@ class FakeProjectNotificationQueue:
 class FakeProjectNotificationGateway:
     def __init__(self) -> None:
         self.rows: list[ProjectNotification] = []
+        self.users_by_category: dict[UUID, list[User]] = {}
+        self.requested_categories: list[UUID] = []
 
     async def bulk_upsert(self, rows: list[ProjectNotification]) -> None:
         for row in rows:
@@ -44,6 +47,13 @@ class FakeProjectNotificationGateway:
             ),
             None,
         )
+
+    async def get_recipients_for_category(
+        self,
+        category_id: UUID,
+    ) -> list[User]:
+        self.requested_categories.append(category_id)
+        return self.users_by_category.get(category_id, [])
 
 
 class FakeChannelNotificationGateway:

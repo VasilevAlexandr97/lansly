@@ -591,7 +591,6 @@ class NotificationProvider(Provider):
     async def get_project_notification_service(  # noqa: PLR0917
         self,
         project_gateway: ProjectGateway,
-        follow_gateway: UserCategoryFollowGateway,
         stop_words_gateway: UserStopWordsGateway,
         price_filter_gateway: UserPriceFilterGateway,
         project_notification_gateway: ProjectNotificationGateway,
@@ -603,10 +602,9 @@ class NotificationProvider(Provider):
     ) -> ProjectNotificationService:
         return ProjectNotificationService(
             project_gateway=project_gateway,
-            follow_gateway=follow_gateway,
             stop_words_gateway=stop_words_gateway,
             price_filter_gateway=price_filter_gateway,
-            project_notification_gateway=project_notification_gateway,
+            notification_gateway=project_notification_gateway,
             channel_notification_gateway=channel_notification_gateway,
             telegram_notifier=telegram_notifier,
             transaction_manager=transaction_manager,

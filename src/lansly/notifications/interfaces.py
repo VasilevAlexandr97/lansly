@@ -7,6 +7,7 @@ from lansly.notifications.models import (
     ChannelNotification,
     ProjectNotification,
 )
+from lansly.users.models import User
 
 
 class ProjectNotificationQueue(Protocol):
@@ -66,6 +67,13 @@ class ProjectNotificationGateway:
         project_id: UUID,
         user_id: UUID,
     ) -> ProjectNotification | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_recipients_for_category(
+        self,
+        category_id: UUID,
+    ) -> list[User]:
         raise NotImplementedError
 
 

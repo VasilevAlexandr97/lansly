@@ -29,10 +29,7 @@ from lansly.notifications.models import (
     ChannelNotification,
     ProjectNotification,
 )
-from lansly.preferences.gateways import (
-    UserCategoryFollowGateway,
-    UserStopWordsGateway,
-)
+from lansly.preferences.gateways import UserStopWordsGateway
 from lansly.preferences.interfaces import UserPriceFilterGateway
 from lansly.projects.consts import Marketplace
 from lansly.projects.dto import ProjectLinks
@@ -51,10 +48,9 @@ class ProjectNotificationService:
     def __init__(  # noqa: PLR0917
         self,
         project_gateway: ProjectGateway,
-        follow_gateway: UserCategoryFollowGateway,
         stop_words_gateway: UserStopWordsGateway,
         price_filter_gateway: UserPriceFilterGateway,
-        project_notification_gateway: ProjectNotificationGateway,
+        notification_gateway: ProjectNotificationGateway,
         channel_notification_gateway: ChannelNotificationGateway,
         telegram_notifier: TelegramNotifier,
         transaction_manager: TransactionManager,
@@ -62,10 +58,9 @@ class ProjectNotificationService:
         channel_id: int | None = None,
     ):
         self.project_gateway = project_gateway
-        self.follow_gateway = follow_gateway
         self.stop_words_gateway = stop_words_gateway
         self.price_filter_gateway = price_filter_gateway
-        self.project_notification_gateway = project_notification_gateway
+        self.notification_gateway = notification_gateway
         self.channel_notification_gateway = channel_notification_gateway
         self.telegram_notifier = telegram_notifier
         self.transaction_manager = transaction_manager
@@ -106,8 +101,10 @@ class ProjectNotificationService:
             if project.category_id is None:
                 continue
             project_notifications: list[ProjectNotification] = []
-            users = await self.follow_gateway.get_users_followed_to_category(
-                project.category_id,
+            users = (
+                await self.notification_gateway.get_recipients_for_category(
+                    project.category_id,
+                )
             )
             user_ids = [user.id for user in users]
             stop_words_map = (
@@ -140,11 +137,9 @@ class ProjectNotificationService:
                     if min_price > project.price or project.price > max_price:
                         continue
 
-                previous_notification = (
-                    await self.project_notification_gateway.get(
-                        project_id=project.id,
-                        user_id=user.id,
-                    )
+                previous_notification = await self.notification_gateway.get(
+                    project_id=project.id,
+                    user_id=user.id,
                 )
                 if (
                     previous_notification is not None
@@ -187,7 +182,7 @@ class ProjectNotificationService:
                 await asyncio.sleep(0.3)
 
             if project_notifications:
-                await self.project_notification_gateway.bulk_upsert(
+                await self.notification_gateway.bulk_upsert(
                     project_notifications,
                 )
                 await self.transaction_manager.commit()

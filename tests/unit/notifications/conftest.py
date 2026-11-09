@@ -11,7 +11,6 @@ from fakes.notifications import (
     FakeTelegramNotifier,
 )
 from fakes.preferences import (
-    FakeUserCategoryFollowGateway,
     FakeUserPriceFilterGateway,
     FakeUserStopWordsGateway,
 )
@@ -35,10 +34,11 @@ def project(project_gateway: FakeProjectGateway) -> Project:
 @pytest.fixture(autouse=True)
 def user(
     project: Project,
-    follow_gateway: FakeUserCategoryFollowGateway,
+    notification_gateway: FakeProjectNotificationGateway,
 ) -> User:
     user = make_user()
-    follow_gateway.users_by_category[project.category_id] = [user]
+    assert project.category_id is not None
+    notification_gateway.users_by_category[project.category_id] = [user]
     return user
 
 
@@ -46,7 +46,6 @@ def user(
 def service(
     *,
     project_gateway: FakeProjectGateway,
-    follow_gateway: FakeUserCategoryFollowGateway,
     stop_words_gateway: FakeUserStopWordsGateway,
     price_filter_gateway: FakeUserPriceFilterGateway,
     notification_gateway: FakeProjectNotificationGateway,
@@ -56,10 +55,9 @@ def service(
 ) -> ProjectNotificationService:
     return ProjectNotificationService(
         project_gateway=project_gateway,
-        follow_gateway=follow_gateway,
         stop_words_gateway=stop_words_gateway,
         price_filter_gateway=price_filter_gateway,
-        project_notification_gateway=notification_gateway,
+        notification_gateway=notification_gateway,
         channel_notification_gateway=channel_notification_gateway,
         telegram_notifier=notifier,
         transaction_manager=txn,
