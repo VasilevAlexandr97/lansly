@@ -59,16 +59,8 @@ async def pro_subscription_info(
 ):
     try:
         plan = await service.get_plan_for_user()
-        text = pro_subscription_info_message(
-            plan_slug=plan.slug,
-            price=plan.price,
-            monthly_price=plan.monthly_price,
-            duration_days=plan.duration_days,
-        )
-        keyboard = build_subscription_plan_kbd(
-            slug=plan.slug,
-            price=plan.price,
-        )
+        text = pro_subscription_info_message(plan.price, plan.duration_days)
+        keyboard = build_subscription_plan_kbd(plan.price)
     except ActiveSubscriptionExistsError:
         text = subscription_exists_message()
         keyboard = build_subscription_exists_kbd()

@@ -17,7 +17,6 @@ from lansly.preferences.dto import (
 from lansly.projects.consts import MARKETPLACE_LABELS, Marketplace
 from lansly.projects.dto import ProjectLinks
 from lansly.projects.models import Project, ProjectCategory
-from lansly.subscriptions.models import PlanSlug
 
 
 class OnboardingAction(StrEnum):
@@ -457,12 +456,9 @@ def build_channel_project_kbd(links: ProjectLinks):
     return builder.as_markup()
 
 
-def build_subscription_plan_kbd(slug: str, price: Decimal):
+def build_subscription_plan_kbd(price: Decimal):
     builder = InlineKeyboardBuilder()
-    if slug == PlanSlug.PRO_INITIAL:
-        text = f"👑 Попробовать PRO за {price:.0f}₽"
-    else:
-        text = f"👑 PRO за {price:.0f}₽/мес"
+    text = f"👑 Подключить PRO за {price:.0f} ₽"
     builder.row(
         InlineKeyboardButton(
             text=text,

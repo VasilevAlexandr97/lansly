@@ -9,14 +9,13 @@ from lansly.preferences.dto import SourceCategoryFollowCountDTO
 from lansly.preferences.models import UserPriceFilter
 from lansly.projects.consts import (
     MARKETPLACE_LABELS,
-    MAX_FREE_GENERATIONS,
     MAX_PRO_GENERATIONS,
     Marketplace,
 )
 from lansly.projects.dto import ProjectLinks
 from lansly.projects.models import Project
+from lansly.subscriptions.consts import TRIAL_DAYS
 from lansly.subscriptions.dto import SubscriptionInfoDTO
-from lansly.subscriptions.models import PlanSlug
 
 
 def truncate_project_description(text: str, length: int = 3000) -> str:
@@ -365,36 +364,23 @@ def generation_limit_exceeded_message(limit: int, is_pro: bool) -> str:
     )
 
 
-def pro_subscription_info_message(
-    plan_slug: PlanSlug,
-    price: Decimal,
-    monthly_price: Decimal,
-    duration_days: int,
-) -> str:
-    text = (
-        "👑 PRO подписка\n\n"
-        "Открой полный доступ к возможностям бота:\n\n"
-        "🔔 Мгновенные уведомления - узнавай о новых заказах "
-        "в выбранных категориях первым, пока их не разобрали "
-        "конкуренты\n\n"
-        f"🤖 {MAX_PRO_GENERATIONS} генераций откликов в месяц - "
-        f"вместо {MAX_FREE_GENERATIONS} бесплатных "
-        f"получи {MAX_PRO_GENERATIONS} откликов в месяц, "
-        "сгенерированных нейросетью, которые помогут выделиться среди фрилансеров\n\n"
-        "⚡️ Экономия времени - не нужно придумывать текст отклика "
-        "самому, ИИ сделает это за секунды\n\n"
+def pro_subscription_info_message(price: Decimal, duration_days: int) -> str:
+    return (
+        "👑 <b>Lansly PRO</b>\n\n"
+        "🔔 <b>Заказы прямо в Telegram.</b> Выбери нужные категории "
+        "на Kwork и FL.ru, настрой фильтры — и бот пришлёт "
+        "подходящие проекты.\n\n"
+        f"🤖 <b>50 генераций откликов на каждые оплаченные {duration_days} "
+        "дней.</b> Нашёл интересный заказ? ИИ поможет набросать "
+        "текст отклика.\n\n"
+        f"🎁 <b>Первые {TRIAL_DAYS} дней бесплатно и без карты.</b> "
+        "Когда пробный период закончится, уведомления встанут на паузу. "
+        "Подключи PRO, чтобы снова получать заказы по своим настройкам.\n\n"
+        f"💳 <b>{price:.0f} ₽ за {duration_days} дней.</b> "
+        "Подписка продлевается автоматически. Отключить продление можно "
+        "в любой момент в разделе «Управление подпиской». "
+        "Доступ будет действовать до конца оплаченного периода."
     )
-    if plan_slug == PlanSlug.PRO_INITIAL:
-        text += (
-            f"🎁 Попробуй PRO всего за {price:.0f}₽ на {duration_days} дня, "
-            f"далее — {monthly_price:.0f}₽/мес. Отменить можно в любой момент."
-        )
-    else:
-        text += (
-            "💎 Оформи полную PRO подписку и "
-            "получи безлимитный доступ ко всем функциям бота"
-        )
-    return text
 
 
 def payment_message(

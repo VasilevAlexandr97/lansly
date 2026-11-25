@@ -30,6 +30,9 @@ from lansly.apps.web.admin_panel.views.projects import (
     ProjectProposalView,
     ProjectView,
 )
+from lansly.apps.web.admin_panel.views.subscriptions import (
+    SubscriptionPlanView,
+)
 from lansly.apps.web.admin_panel.views.users import UserRoleView, UserView
 from lansly.apps.web.routers.media import router as get_media_router
 from lansly.articles.models import Article
@@ -46,6 +49,7 @@ from lansly.projects.models import (
     ProjectCategory,
     ProjectProposal,
 )
+from lansly.subscriptions.models import SubscriptionPlan
 from lansly.users.models import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -76,6 +80,7 @@ def setup_views(admin: Admin) -> None:
     admin.add_view(ProjectProposalView(ProjectProposal))
     admin.add_view(ArticleView(Article))
     admin.add_view(ProjectNotificationView(ProjectNotification))
+    admin.add_view(SubscriptionPlanView(SubscriptionPlan))
 
 
 def setup_admin(engine: AsyncEngine, app: FastAPI, config: Config) -> None:

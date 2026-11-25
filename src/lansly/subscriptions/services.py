@@ -83,19 +83,10 @@ class SubscriptionPaymentService:
             blocking_timeout=30,
         )
 
-    async def _get_initial_or_monthly_plan(
-        self,
-        user_id: UUID,
-    ) -> SubscriptionPlan:
-        previous_subscriptions = await self.subscription_gateway.get(user_id)
-        if previous_subscriptions:
-            plan = await self.subscription_plan_gateway.get_by_slug(
-                PlanSlug.PRO_MONTHLY,
-            )
-        else:
-            plan = await self.subscription_plan_gateway.get_by_slug(
-                PlanSlug.PRO_INITIAL,
-            )
+    async def _get_plan(self) -> SubscriptionPlan:
+        plan = await self.subscription_plan_gateway.get_by_slug(
+            PlanSlug.PRO_MONTHLY,
+        )
         if not plan:
             raise SubscriptionPlanNotFoundError
         return plan
@@ -105,15 +96,8 @@ class SubscriptionPaymentService:
         is_active = await self.subscription_gateway.has_active(user_id)
         if is_active:
             raise ActiveSubscriptionExistsError
-        plan = await self._get_initial_or_monthly_plan(user_id)
+        plan = await self._get_plan()
         monthly_price = plan.price_rub
-        if plan.slug == PlanSlug.PRO_INITIAL:
-            pro_plan = await self.subscription_plan_gateway.get_by_slug(
-                PlanSlug.PRO_MONTHLY,
-            )
-            if not pro_plan:
-                raise SubscriptionPlanNotFoundError
-            monthly_price = pro_plan.price_rub
         return PlanForUserDTO(
             slug=PlanSlug(plan.slug),
             price=plan.price_rub,
@@ -159,7 +143,7 @@ class SubscriptionPaymentService:
                             else None
                         )
                         existing.mark_canceled(error=error, dt=now)
-                plan = await self._get_initial_or_monthly_plan(user_id)
+                plan = await self._get_plan()
                 payment_request = PaymentRequest(
                     amount=AmountData(
                         value=str(plan.price_rub),
@@ -187,9 +171,7 @@ class SubscriptionPaymentService:
                         type=ConfirmationType.REDIRECT,
                         return_url="https://t.me/lansly_bot",
                     ),
-                    metadata={
-                        "plan_id": str(plan.id),
-                    },
+                    metadata={"plan_id": str(plan.id)},
                     save_payment_method=True,
                     capture=True,
                 )
