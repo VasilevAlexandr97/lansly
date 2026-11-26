@@ -534,7 +534,7 @@ def build_no_active_subscription_kbd():
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(
-            text="👑 PRO подписка",
+            text="👑 Подключить PRO",
             callback_data="pro_subscription",
         ),
     )
