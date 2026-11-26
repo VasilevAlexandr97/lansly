@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -39,6 +40,10 @@ class UserGateway(Protocol):
 
     @abstractmethod
     async def get_username(self, user_id: UUID) -> str | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_trial_started_at(self, user_id: UUID) -> datetime | None:
         raise NotImplementedError
 
 

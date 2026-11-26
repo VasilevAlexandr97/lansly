@@ -27,6 +27,7 @@ from lansly.notifications.interfaces import (
     SubscriptionActivatedNotificationQueue,
     SubscriptionRenewalNotificationQueue,
 )
+from lansly.subscriptions.consts import TRIAL_DAYS
 from lansly.subscriptions.dto import PlanForUserDTO, SubscriptionInfoDTO
 from lansly.subscriptions.exceptions import (
     ActiveSubscriptionExistsError,
@@ -52,6 +53,7 @@ from lansly.subscriptions.models import (
     SubscriptionPlan,
 )
 from lansly.subscriptions.validators import payment_email_validator
+from lansly.users.interfaces import UserGateway
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +204,7 @@ class SubscriptionPaymentService:
 class PaymentVerificationService:
     def __init__(
         self,
+        user_gateway: UserGateway,
         payment_gateway: PaymentGateway,
         payment_client: YooKassaClient,
         subscription_plan_gateway: SubscriptionPlanGateway,
@@ -211,6 +214,7 @@ class PaymentVerificationService:
         notify_queue: SubscriptionActivatedNotificationQueue,
         redis_client: Redis,
     ):
+        self.user_gateway = user_gateway
         self.payment_gateway = payment_gateway
         self.payment_client = payment_client
         self.subscription_plan_gateway = subscription_plan_gateway
@@ -287,14 +291,32 @@ class PaymentVerificationService:
                                     "not found in DB — skipping",
                                 )
                                 continue
+                            if plan.slug != PlanSlug.PRO_MONTHLY:
+                                logger.error(
+                                    f"Subscription plan id={plan_id} "
+                                    f"(from payment {payment.id} metadata) "
+                                    f"is {plan.slug} "
+                                    f"expected {PlanSlug.PRO_MONTHLY}",
+                                )
+                                continue
+                            trial_started_at = (
+                                await self.user_gateway.get_trial_started_at(
+                                    payment.user_id,
+                                )
+                            )
+                            if trial_started_at is None:
+                                logger.error(
+                                    "Cannot activate subscription "
+                                    f"for confirmed payment {payment.id}:"
+                                    f" user {payment.user_id} not found",
+                                )
+                                continue
                             payment.mark_succeeded(pm.id, dt=now)
-                            expires_at = (
-                                now + timedelta(days=plan.duration_days)
-                            ).replace(
-                                hour=23,
-                                minute=59,
-                                second=59,
-                                microsecond=0,
+                            trial_ends_at = trial_started_at + timedelta(
+                                days=TRIAL_DAYS,
+                            )
+                            expires_at = max(now, trial_ends_at) + timedelta(
+                                days=plan.duration_days,
                             )
                             subscription = Subscription(
                                 id=uuid7(),

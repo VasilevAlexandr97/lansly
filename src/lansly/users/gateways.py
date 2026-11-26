@@ -1,5 +1,6 @@
 import logging
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import exists, select
@@ -61,6 +62,10 @@ class SAUserGateway(UserGateway):
 
     async def get_username(self, user_id: UUID) -> str | None:
         stmt = select(User.username).where(User.id == user_id)
+        return await self.session.scalar(stmt)
+
+    async def get_trial_started_at(self, user_id: UUID) -> datetime | None:
+        stmt = select(User.trial_started_at).where(User.id == user_id)
         return await self.session.scalar(stmt)
 
 
